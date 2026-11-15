@@ -43,17 +43,33 @@ UX fixes:
       shortcut; README still to do.*
 
 Speaker:
-- [ ] Sound mode: show and switch Monitor / Music / Custom (test switching on the speaker first)
-- [ ] Input: show and switch (find out which number is which input first)
+- [x] Sound mode: show and switch Monitor / Music / Custom (test switching on the speaker first).
+      *Done: SelectorBar under the slider (WinUI's control for 2-3 modes); switched Monitor → Music →
+      Monitor from the panel on 2026-11-16, the bar followed the speaker's reply, and the room
+      tuning read back unchanged afterwards (`00 02 00 1E 03 00 01`).*
+- [ ] Input: show and switch (find out which number is which input first). *Owner (2026-11-16): "i
+      thought it mixed the signals? check online first". Checked: the MR4.5 manual says all audio
+      inputs, Bluetooth included, can be used in parallel, so there is no input to switch; what
+      `0x61` ("1 of 4") means is unknown. Decision pending: drop, or show it as unexplained.*
 - [x] Volume limit (setting; caps what the app sets, not the knob). *Tested on the speaker: limit 6,
       slider asked for 8, speaker went to 6. Switched back off.*
-- [ ] Power-off button
+- [ ] Power-off: **a right-click menu item and a button in the panel, no confirmation** (owner's
+      choice, 2026-11-16)
 - [ ] **Switch the speakers off when the PC goes to sleep** (owner's own idea; setting, off by
-      default; must be tested with a real sleep)
-- [ ] **Equalizer**: first test writing one band on the speaker (change one step, put it back),
-      then propose an EQ design for the owner to approve before building it
-- [ ] **Auto-standby**: investigate the protocol (decode the `0xD8` feature table, try the other
-      known commands read-only) to find where the MR4.5 keeps it
+      default). *Built (setting in Power; Windows' suspend callback sends the power-off); must be
+      tested with a real sleep.*
+- [ ] **Equalizer**, in settings as an expander (owner's choice, 2026-11-16), not in the main
+      panel. *Writing one band tested and restored (see protocol facts).*
+- [ ] **Equalizer presets** (owner, 2026-11-16): "create 2 or 3 presets, and because the bass is
+      not good, and there's already a sound profile, but I want something with proper bass, but I
+      don't know how to do that. So 2 or 3 presets for the user to choose from, plus custom."
+      Research how to shape bass for a 4.5" monitor first (sources), propose the curves, let the
+      owner choose.
+- [ ] **Auto-standby**: investigate the protocol. *2026-11-16: `0xD3` reads a timer (`00 00` =
+      off); `0xD1 00 01` set it to 1 minute (read back `00 01`), `0xD2` switched it off again (read
+      back `00 00`). Owner asked why 20 minutes: it was an arbitrary example; the test used 1
+      minute. Still unknown: whether it is a shutdown timer or auto-standby on silence.
+      Decision pending: whether and how to offer it.*
 
 Convenience:
 - [x] Mute (click the speaker symbol; click again restores). *Tested: 7 → 0 → 7.*
@@ -70,7 +86,10 @@ guidelines"):
       idle for 60 s: 219 ms CPU = 0.37 % of one core = 0.02 % of the 16-core PC; 106 MB private
       memory (173 MB working set), 54 threads; Bluetooth: one 6-byte query every 0.5 s. Same as the
       first measurement. Light enough to leave as is.*
-- [ ] Lightweight check again after the speaker features change the connection loop
+- [x] Lightweight check again after the speaker features change the connection loop. *2026-11-16,
+      with the sound mode read every 5 s: 312 ms CPU per 60 s = 0.52 % of one core = 0.03 % of the
+      PC; 73 MB private memory, 30 threads. Still light.*
+- [ ] Lightweight check after the equalizer and power-off work
 - [x] **Settings per Microsoft's WinUI guidance**: SettingsCard / SettingsExpander from the Windows
       Community Toolkit, BodyStrong section headers, disabled cards say why, About as an expander
       at the bottom with name, icon, version and links
@@ -122,10 +141,18 @@ Offered and not chosen; listed so they don't silently disappear:
 ## Protocol facts for the speaker features (MR4.5, 2026-11-15)
 
 - Sound mode `0xD5` → `00 02 00 1E 03 00 01`: mode 0 (Monitor), index 2, low cut 30 Hz,
-  slope −24 dB/oct, acoustic space 0 dB, desktop on. Switch with `0xC4` + `[mode][rest echoed]`
-  (EdifierControl `makeSetEq`); untested.
+  slope −24 dB/oct, acoustic space 0 dB, desktop on. Modes: 0 Monitor, 1 Music, 2 Custom.
+  **Switching tested 2026-11-16**: `0xC4` + all 7 bytes with only the first replaced
+  (`AA 0C C4 00 07 01 02 00 1E 03 00 01 A6` = Music); the speaker acks `01` and pushes `0xD5`.
+  *Incident:* a first try sent 6 bytes by mistake; the speaker read the checksum as the 7th byte
+  and changed its room tuning (low cut 3, slope −6, space −1 dB, desktop invalid) for about two
+  minutes, until the original 7 bytes were written back and read back identical. The app must
+  only ever echo the bytes the speaker reported, never typed ones.
 - Input `0x61` → `04 01`: input 1 of 4; set with `0x62`; mapping unknown.
 - Power off `0xCE`: works; no reply.
-- Custom EQ `0x43`: 9 bands `[index][freqHi][freqLo][gain]`, gain 6 = flat; set one band with
-  `0x44`; untested.
-- Auto-standby `0xD7`: no reply. `0xD8`: 29-byte feature table, not decoded.
+- Custom EQ `0x43`: 9 bands `[index][freqHi][freqLo][gain]`, gain 6 = flat. **Writing tested
+  2026-11-16**: `0x44` + `[01][band][freqHi][freqLo][gain]` (5 bytes) raised 62 Hz from 10 to 11,
+  acked `01`, read back 11; then set back to 10 and read back identical to before.
+- Auto-standby `0xD7`: no reply. `0xD8`: 29-byte feature table, not decoded. **`0xD3` answers
+  `00 00`** (2026-11-16): in mEDIFIER (Edifier headphones) `0xD3` is the auto shutdown timer,
+  set with `0xD1 [00][minutes]` and switched off with `0xD2`; on the MR4.5 setting is untested.
