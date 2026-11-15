@@ -108,8 +108,9 @@ async def scan(timeout: float) -> list[tuple[BLEDevice, AdvertisementData]]:
 
 
 async def probe(address: str, wait: float, watch: float = 0.0, poll: float = 0.5, set_test: bool = False,
-                reads: list[int] | None = None, power_off: bool = False) -> int:
+                reads: list[int] | None = None, power_off: bool = False, steps: list[str] | None = None) -> int:
     reads = reads or []
+    steps = steps or []
     print(f"\nConnecting to {address} ...")
     async with BleakClient(address, timeout=20.0) as client:
         print("Connected. GATT services:")
@@ -205,6 +206,30 @@ async def probe(address: str, wait: float, watch: float = 0.0, poll: float = 0.5
                           f"{len(pl)} payload bytes: {pl.hex(' ')}  |{text}|")
             replies.clear()
 
+        # --step: reads, writes and pauses, in the given order (for change-check-restore tests).
+        for step in steps:
+            kind, _, rest = step.partition(":")
+            if kind == "p":
+                await asyncio.sleep(float(rest))
+                continue
+            cmd_hex, _, payload_hex = rest.partition(":")
+            cmd = int(cmd_hex, 16)
+            payload = bytes.fromhex(payload_hex.replace(" ", "")) if payload_hex else b""
+            replies.clear()
+            pkt = build_v2(code, cmd, payload)
+            print(f"\n{'WRITE' if kind == 'w' else 'Read'} 0x{cmd:02X}: {pkt.hex(' ')}")
+            await client.write_gatt_char(write_ch, pkt, response=use_response)
+            await asyncio.sleep(1.2)
+            if not replies:
+                print("  no reply")
+            for r in replies:
+                p = parse_v2(r)
+                print(f"  reply: {r.hex(' ')}")
+                if p:
+                    pl = p["payload"]
+                    print(f"    cmd 0x{p['command']:02X}, checksum_ok={p['checksum_ok']}, payload: {pl.hex(' ')}")
+            replies.clear()
+
         if power_off:
             pkt = build_v2(code, CMD_SHUTDOWN)
             print(f"\nPOWER OFF (0x{CMD_SHUTDOWN:02X}): {pkt.hex(' ')}")
@@ -265,8 +290,10 @@ async def main() -> int:
                     help="send this query command (hex, e.g. D5) and print the reply; repeatable")
     ap.add_argument("--power-off", action="store_true",
                     help="WRITES: switch the speakers off (command 0xCE)")
+    ap.add_argument("--step", action="append", default=[], metavar="STEP",
+                    help="run in order, repeatable: r:CMD (read), w:CMD:PAYLOADHEX (WRITES), p:SECONDS (pause)")
     args = ap.parse_args()
-    extra = dict(reads=args.read, power_off=args.power_off)
+    extra = dict(reads=args.read, power_off=args.power_off, steps=args.step)
 
     if args.address:
         return await probe(args.address, args.wait, args.watch, args.poll, args.set_test, **extra)
