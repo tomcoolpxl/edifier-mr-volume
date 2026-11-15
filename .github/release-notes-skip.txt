@@ -1,0 +1,2 @@
+# Commits the release notes leave out: a commit hash (or its start) per line, then # and why.
+# For a change that a later commit took back before the release.

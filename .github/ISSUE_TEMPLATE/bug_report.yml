@@ -1,0 +1,36 @@
+name: Bug report
+description: The app doesn't find the speaker, loses it, shows the wrong volume, or misbehaves
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: dropdown
+    id: model
+    attributes:
+      label: Speaker model
+      options:
+        - MR4.5
+        - MR3
+        - MR5
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: |
+        Click the tray icon, then the gear: copy the Diagnostics lines (status, speaker,
+        firmware, app version) here.
+      render: text
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: The relevant lines from the log (gear, then "Open log"; it is %LOCALAPPDATA%\EdifierMrVolume\log.txt).
+      render: text

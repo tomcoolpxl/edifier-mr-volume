@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+  # The release workflow runs this first, on the commit being released.
+  workflow_call:
+    inputs:
+      ref:
+        description: 'Commit, branch or tag to check (default: the triggering ref)'
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+# Third-party actions are pinned to a commit, with the version it was in a comment.
+jobs:
+  build-test:
+    name: Build, test and smoke-launch
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          persist-credentials: false
+
+      - name: Set up .NET (version from global.json)
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+
+      - name: Protocol tests
+        run: dotnet test tests/EdifierMrVolume.Core.Tests -c Release --logger trx --results-directory TestResults
+
+      - name: Build the app (x64)
+        run: dotnet build src/EdifierMrVolume/EdifierMrVolume.csproj -c Release -p:Platform=x64
+
+      # Starts the real WinUI app with --render-icons: it boots XAML, draws the tray icon for
+      # a few values and exits. Catches a broken build output or a crash at start-up.
+      - name: Smoke-launch the app
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path 'src/EdifierMrVolume/bin/x64/Release/*/win-x64/EdifierMrVolume.exe'
+          $out = Join-Path $env:RUNNER_TEMP 'icons'
+          $p = Start-Process -FilePath $exe -ArgumentList '--render-icons', $out -PassThru
+          if (-not $p.WaitForExit(60000)) { $p.Kill(); Write-Error 'The app did not exit within 60 s.'; exit 1 }
+          if ($p.ExitCode -ne 0) { Write-Error "The app exited with $($p.ExitCode)."; exit 1 }
+          if (-not (Test-Path (Join-Path $out 'sheet.png'))) { Write-Error 'The app wrote no icon sheet.'; exit 1 }
+          Write-Host 'The app started, drew its tray icons and exited.'
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: test-results
+          path: TestResults
+          if-no-files-found: ignore

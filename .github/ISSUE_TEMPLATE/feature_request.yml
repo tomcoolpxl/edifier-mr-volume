@@ -1,0 +1,32 @@
+name: Feature request
+description: Something Edifier MR Volume should do that it doesn't yet
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The app deliberately does one thing: show and set the speaker's own volume. Describe
+        what you'd like and what you'd use it for; it gets weighed against keeping it simple.
+  - type: textarea
+    id: what
+    attributes:
+      label: What you'd like
+      description: The behaviour or setting, as you'd use it.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: The situation where you'd need it. A real example helps.
+    validations:
+      required: true
+  - type: dropdown
+    id: model
+    attributes:
+      label: Speaker model
+      options:
+        - MR4.5
+        - MR3
+        - MR5
+        - Other
