@@ -72,6 +72,12 @@ Speaker:
       crossover, rear High/Low dials and what they do at their default), the sound modes, the
       ConneX EQ bands and step size, then reviews and measurements; curves only from that, with
       the source for each choice. (The first proposal, made before this, was partly guessed.)
+      *Listened 2026-11-16, each preset written by `tools/eq_audition.py` in Custom mode and read
+      back. **Owner's choice: all three** — Deep bass (62 Hz +3, 125 Hz −1), Balanced (125 Hz −2,
+      2 kHz +2), Deep + balanced (62 Hz +3, 125 Hz −2, 2 kHz +2) — plus Custom. Deep + balanced was
+      left on the speaker as its Custom curve (owner's choice); the owner's previous curve (+4/+5/+4/+2
+      at 62/125/250/500 Hz) is kept in `~/.edifier-eq-backup.json` and can be put back with
+      `eq_audition.py restore`. Still to build in the app.*
 - [ ] **Auto-standby**: investigate the protocol. *2026-11-16: `0xD3` reads a timer (`00 00` =
       off); `0xD1 00 01` set it to 1 minute (read back `00 01`), `0xD2` switched it off again (read
       back `00 00`). Owner asked why 20 minutes: it was an arbitrary example; the test used 1
