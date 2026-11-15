@@ -3,7 +3,7 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 
-namespace Mr45Volume;
+namespace EdifierMrVolume;
 
 /// <summary>
 /// Draws the volume number as a tray icon at the taskbar's real pixel size, so the digits

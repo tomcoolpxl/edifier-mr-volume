@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/EdifierMrVolume.Core/EdifierMrVolume.Core.csproj" />
+    <Project Path="src/EdifierMrVolume/EdifierMrVolume.csproj">
+      <Platform Project="x64" />
+    </Project>
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/EdifierMrVolume.Core.Tests/EdifierMrVolume.Core.Tests.csproj" />
+  </Folder>
+</Solution>

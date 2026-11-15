@@ -3,7 +3,7 @@ using Windows.Devices.Bluetooth;
 using Windows.Devices.Bluetooth.Advertisement;
 using Windows.Devices.Bluetooth.GenericAttributeProfile;
 
-namespace Mr45Volume.Core;
+namespace EdifierMrVolume.Core;
 
 public enum SpeakerState
 {

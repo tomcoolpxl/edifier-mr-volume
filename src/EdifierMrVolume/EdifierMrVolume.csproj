@@ -3,12 +3,12 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>$(WindowsTfm)</TargetFramework>
-    <RootNamespace>Mr45Volume</RootNamespace>
-    <AssemblyName>Mr45Volume</AssemblyName>
+    <RootNamespace>EdifierMrVolume</RootNamespace>
+    <AssemblyName>EdifierMrVolume</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <Version>1.0.0</Version>
-    <Product>MR4.5 Volume</Product>
+    <Product>Edifier MR Volume</Product>
     <Platforms>x64;ARM64</Platforms>
     <Platform Condition="'$(Platform)' == '' or '$(Platform)' == 'AnyCPU' or '$(Platform)' == 'Any CPU'">x64</Platform>
     <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
@@ -29,7 +29,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Mr45Volume.Core\Mr45Volume.Core.csproj" />
+    <ProjectReference Include="..\EdifierMrVolume.Core\EdifierMrVolume.Core.csproj" />
   </ItemGroup>
 
 </Project>

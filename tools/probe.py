@@ -15,9 +15,9 @@ Protocol facts are taken from two MIT-licensed reverse-engineering projects:
   - github.com/Devis99/omarchy-edifier-mr5 (scripts/edifier_protocol.py)
 
 Usage:
-  python probe_mr45.py                 # scan, connect, query volume
-  python probe_mr45.py --scan-only     # only list what is advertising
-  python probe_mr45.py --address AA:BB:CC:DD:EE:FF
+  python probe.py                 # scan, connect, query volume
+  python probe.py --scan-only     # only list what is advertising
+  python probe.py --address AA:BB:CC:DD:EE:FF
 """
 
 from __future__ import annotations

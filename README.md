@@ -1,7 +1,7 @@
-# mr45-volume
+# Edifier MR Volume
 
-A Windows tray app that shows and sets the **hardware volume of Edifier MR4.5, MR3 and MR5 studio
-monitors** and follows the physical volume knob live. It talks to the speaker's Bluetooth LE
+An unofficial Windows tray app for **Edifier MR studio monitors** (MR4.5, MR3, MR5). It shows and
+sets the speakers' own hardware volume and follows the physical volume knob live. It talks to the speaker's Bluetooth LE
 control interface (the one the EDIFIER ConneX phone app uses), so it doesn't depend on the
 Windows volume slider. Control runs over its own Bluetooth LE link, separate from the audio
 input (tested with the speakers fed by a USB audio interface).
@@ -46,12 +46,12 @@ Windows Bluetooth settings is needed.
 ```
 
 This publishes a self-contained Release build (.NET and the Windows App SDK runtime included,
-about 240 MB), installs it to `%LOCALAPPDATA%\Programs\Mr45Volume`, adds a **MR4.5 Volume**
+about 240 MB), installs it to `%LOCALAPPDATA%\Programs\EdifierMrVolume`, adds a **Edifier MR Volume**
 Start menu shortcut and starts it. Rerun it after pulling changes: it closes the running copy
 cleanly, so the speaker reconnects within seconds. Then tick **Start with Windows** in the tray menu.
 
 To uninstall: untick **Start with Windows**, choose **Exit**, then delete
-`%LOCALAPPDATA%\Programs\Mr45Volume`, the Start menu shortcut and `%LOCALAPPDATA%\Mr45Volume` (log).
+`%LOCALAPPDATA%\Programs\EdifierMrVolume`, the Start menu shortcut and `%LOCALAPPDATA%\EdifierMrVolume` (log).
 
 Command-line switches: `--show` opens the flyout (launching it again while it runs does the
 same), `--exit` closes the running copy.
@@ -59,38 +59,38 @@ same), `--exit` closes the running copy.
 ## Develop
 
 ```powershell
-dotnet build src/Mr45Volume/Mr45Volume.csproj -p:Platform=x64
-src\Mr45Volume\bin\x64\Debug\net10.0-windows10.0.26100.0\win-x64\Mr45Volume.exe --show
+dotnet build src/EdifierMrVolume/EdifierMrVolume.csproj -p:Platform=x64
+src\EdifierMrVolume\bin\x64\Debug\net10.0-windows10.0.26100.0\win-x64\EdifierMrVolume.exe --show
 ```
 
 Only one copy runs at a time, so exit the installed one first. Run the protocol tests:
 
 ```powershell
-dotnet test tests/Mr45Volume.Core.Tests
+dotnet test tests/EdifierMrVolume.Core.Tests
 ```
 
 ### Tray icon not visible?
 
 Windows 11 hides new tray icons. Turn it on under **Settings › Personalization › Taskbar ›
-Other system tray icons › Mr45Volume**, or drag it from the hidden-icons area onto the taskbar.
+Other system tray icons › EdifierMrVolume**, or drag it from the hidden-icons area onto the taskbar.
 
 ### Phone app can't connect?
 
 The speaker accepts one BLE control client at a time. Right-click the tray icon and untick
 **Connected to speaker** while you use EDIFIER ConneX; tick it again afterwards.
 
-The log lives in `%LOCALAPPDATA%\Mr45Volume\log.txt`.
+The log lives in `%LOCALAPPDATA%\EdifierMrVolume\log.txt`.
 
 ## Layout
 
 | Path | What |
 | --- | --- |
-| `src/Mr45Volume.Core` | Protocol (`EdifierProtocol`) and the BLE connection loop (`SpeakerConnection`) |
-| `src/Mr45Volume` | WinUI 3 tray app: tray icon, flyout, autostart, log |
-| `tests/Mr45Volume.Core.Tests` | Protocol tests using bytes captured from a real MR4.5 |
+| `src/EdifierMrVolume.Core` | Protocol (`EdifierProtocol`) and the BLE connection loop (`SpeakerConnection`) |
+| `src/EdifierMrVolume` | WinUI 3 tray app: tray icon, flyout, autostart, log |
+| `tests/EdifierMrVolume.Core.Tests` | Protocol tests using bytes captured from a real MR4.5 |
 | `tools/install.ps1` | Publish and install for the current user |
-| `tools/make-icon.ps1` | Draws the app icon (`src/Mr45Volume/Assets/app.ico`) |
-| `tools/probe_mr45.py` | Python/Bleak probe used to verify the protocol |
+| `tools/make-icon.ps1` | Draws the app icon (`src/EdifierMrVolume/Assets/app.ico`) |
+| `tools/probe.py` | Python/Bleak probe used to verify the protocol |
 
 ## Protocol, verified on an MR4.5 (2026-11-15)
 
@@ -115,9 +115,9 @@ previous bytes & 0xFF. The MR4.5 with the 8625 DSP revision reportedly uses `…
 ```powershell
 python -m venv .venv
 .venv\Scripts\python.exe -m pip install bleak
-.venv\Scripts\python.exe tools\probe_mr45.py              # find the speaker, read the volume
-.venv\Scripts\python.exe tools\probe_mr45.py --watch 30   # print every knob change for 30 s
-.venv\Scripts\python.exe tools\probe_mr45.py --set-test   # one step down and back (writes!)
+.venv\Scripts\python.exe tools\probe.py              # find the speaker, read the volume
+.venv\Scripts\python.exe tools\probe.py --watch 30   # print every knob change for 30 s
+.venv\Scripts\python.exe tools\probe.py --set-test   # one step down and back (writes!)
 ```
 
 Quit the tray app (or untick **Connected to speaker**) first, since only one client can connect.

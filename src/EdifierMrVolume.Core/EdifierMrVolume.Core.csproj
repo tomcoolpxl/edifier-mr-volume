@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>$(WindowsTfm)</TargetFramework>
-    <RootNamespace>Mr45Volume.Core</RootNamespace>
+    <RootNamespace>EdifierMrVolume.Core</RootNamespace>
   </PropertyGroup>
 
 </Project>

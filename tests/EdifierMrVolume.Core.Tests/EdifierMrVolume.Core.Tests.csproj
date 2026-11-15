@@ -17,7 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Mr45Volume.Core\Mr45Volume.Core.csproj" />
+    <ProjectReference Include="..\..\src\EdifierMrVolume.Core\EdifierMrVolume.Core.csproj" />
   </ItemGroup>
 
 </Project>

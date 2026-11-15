@@ -3,16 +3,16 @@ using H.NotifyIcon;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Mr45Volume.Core;
+using EdifierMrVolume.Core;
 using Windows.UI.ViewManagement;
 
-namespace Mr45Volume;
+namespace EdifierMrVolume;
 
 public partial class App : Application
 {
-    private const string SingleInstanceName = @"Local\Mr45Volume.SingleInstance";
-    private const string ShowSignalName = @"Local\Mr45Volume.Show";
-    private const string ExitSignalName = @"Local\Mr45Volume.Exit";
+    private const string SingleInstanceName = @"Local\EdifierMrVolume.SingleInstance";
+    private const string ShowSignalName = @"Local\EdifierMrVolume.Show";
+    private const string ExitSignalName = @"Local\EdifierMrVolume.Exit";
     /// <summary>Shown until the connection tells us which model (MR4.5, MR3) it is.</summary>
     private const string UnknownModel = "Edifier MR";
 

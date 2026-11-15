@@ -1,6 +1,6 @@
-using Mr45Volume.Core;
+using EdifierMrVolume.Core;
 
-namespace Mr45Volume.Core.Tests;
+namespace EdifierMrVolume.Core.Tests;
 
 /// <summary>Byte sequences captured from a real MR4.5 on 2026-11-15.</summary>
 public class EdifierProtocolTests

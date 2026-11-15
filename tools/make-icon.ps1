@@ -1,11 +1,11 @@
 <#
 .SYNOPSIS
-    Draws the app icon (a volume knob) and writes src/Mr45Volume/Assets/app.ico
+    Draws the app icon (a volume knob) and writes src/EdifierMrVolume/Assets/app.ico
     with PNG-compressed images from 16 to 256 px. Rerun after changing the design.
 #>
 [CmdletBinding()]
 param(
-    [string]$OutFile = (Join-Path (Split-Path $PSScriptRoot -Parent) 'src\Mr45Volume\Assets\app.ico'),
+    [string]$OutFile = (Join-Path (Split-Path $PSScriptRoot -Parent) 'src\EdifierMrVolume\Assets\app.ico'),
     [string]$PreviewFile
 )
 $ErrorActionPreference = 'Stop'

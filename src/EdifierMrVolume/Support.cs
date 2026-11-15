@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Windows.Input;
 using Microsoft.Win32;
 
-namespace Mr45Volume;
+namespace EdifierMrVolume;
 
 internal sealed class RelayCommand(Action execute) : ICommand
 {
@@ -17,7 +17,7 @@ internal sealed class RelayCommand(Action execute) : ICommand
 internal static class Autostart
 {
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    private const string ValueName = "Mr45Volume";
+    private const string ValueName = "EdifierMrVolume";
 
     public static bool IsEnabled
     {
@@ -46,13 +46,13 @@ internal static class Autostart
     }
 }
 
-/// <summary>Small rolling log in %LOCALAPPDATA%\Mr45Volume.</summary>
+/// <summary>Small rolling log in %LOCALAPPDATA%\EdifierMrVolume.</summary>
 internal static class Log
 {
     private const long MaxBytes = 1_000_000;
     private static readonly object Gate = new();
     private static readonly string Folder =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mr45Volume");
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EdifierMrVolume");
     private static readonly string FilePath = Path.Combine(Folder, "log.txt");
 
     public static void Write(string message)

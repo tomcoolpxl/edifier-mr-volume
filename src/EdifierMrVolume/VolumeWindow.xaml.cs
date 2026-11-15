@@ -5,11 +5,11 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
-using Mr45Volume.Core;
+using EdifierMrVolume.Core;
 using Windows.Graphics;
 using Windows.System;
 
-namespace Mr45Volume;
+namespace EdifierMrVolume;
 
 /// <summary>Small flyout above the taskbar: status, slider and the current level.</summary>
 public sealed partial class VolumeWindow : Window

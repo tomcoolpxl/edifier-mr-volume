@@ -1,4 +1,4 @@
-namespace Mr45Volume.Core;
+namespace EdifierMrVolume.Core;
 
 /// <summary>One known speaker profile: what it advertises and which GATT service holds the controls.</summary>
 public sealed record SpeakerModel(string Name, Guid AdvertisedUuid, Guid ServiceUuid);
