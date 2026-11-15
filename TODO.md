@@ -64,7 +64,12 @@ Speaker:
       not good, and there's already a sound profile, but I want something with proper bass, but I
       don't know how to do that. So 2 or 3 presets for the user to choose from, plus custom."
       Research how to shape bass for a 4.5" monitor first (sources), propose the curves, let the
-      owner choose.
+      owner choose. **Owner, 2026-11-16: "Check the exact specs of the speakers. I did not change
+      the two dials at the back, and then check what people say in reviews or measurements, and
+      then make the profiles. You're just guessing now."** So: official specs (drivers, response,
+      crossover, rear High/Low dials and what they do at their default), the sound modes, the
+      ConneX EQ bands and step size, then reviews and measurements; curves only from that, with
+      the source for each choice. (The first proposal, made before this, was partly guessed.)
 - [ ] **Auto-standby**: investigate the protocol. *2026-11-16: `0xD3` reads a timer (`00 00` =
       off); `0xD1 00 01` set it to 1 minute (read back `00 01`), `0xD2` switched it off again (read
       back `00 00`). Owner asked why 20 minutes: it was an arbitrary example; the test used 1
@@ -102,6 +107,16 @@ guidelines"):
       buttons up to 5, so "Close after" keeps them. (3) Destructive actions need a confirmation:
       applies to the power-off button, a question for the owner. (4) Test in a High Contrast
       theme: added to Verify.*
+- [ ] **Full UX and UI review, after all the UI work is done** (owner, 2026-11-16: "I want you to
+      do a UX and UI review with whatever skill is needed ... I tried to plan this before with you,
+      and you disregarded my command ... When ... you're done with the UI work, I want you to do
+      this. Make a note of this"). Use Microsoft's `winui` plugin skills (`winui-design`,
+      `winui-code-review`, `winui-ui-testing`; installed 2026-11-16, user scope) plus the
+      design-critique, accessibility-review and ux-copy skills and Microsoft's app-settings
+      guidelines; cover the tray icon, tooltip, menu, panel, settings, equalizer and every text;
+      report findings with sources before changing anything.
+- [ ] Decide whether to install Microsoft's WinApp CLI, which `winui-design` uses for its sample
+      search (`winapp find-ui`); the skill works without it.
 - [ ] **Rescan**: never offered. Reconnect already rescans before connecting; tell the owner and let
       them decide whether a separate Rescan is wanted
 
@@ -140,6 +155,20 @@ Offered and not chosen; listed so they don't silently disappear:
 
 ## Protocol facts for the speaker features (MR4.5, 2026-11-15)
 
+- Speaker facts for the EQ presets (2026-11-16):
+  4.5" mid-bass driver (30 W) + 1" silk tweeter (10 W), crossover 2800 Hz, 50 Hz-40 kHz
+  ([Edifier](https://www.edifier.com/global/p/studio-monitors/mr4-5)). Rear knobs (manual): High
+  ±6 dB above 10 kHz, Low ±6 dB around 125 Hz, 0 at the centre; the owner hasn't touched them.
+  Modes (manual): red = Monitor, green = Music, white = Custom (the 9-band EQ); an MR4 review
+  describes Music as warmer, more mid-bass and lower treble; Edifier doesn't publish the curves.
+  Measured ([Erin](https://www.erinsaudiocorner.com/loudspeakers/edifier_mr4_5/)): −3 dB at 60 Hz,
+  −10 dB at 44 Hz, upper-bass emphasis 120-150 Hz, recession 2-3 kHz, compression from 96 dB
+  mostly in the bass. Heard ([ecoustics](https://www.ecoustics.com/reviews/edifier-mr4-5/)): rolls
+  off around 45 Hz, mid-bass hump around 125 Hz, would like more 10-80 Hz and 2-3 kHz.
+  EQ bands 62/125/250/500 Hz/1/2/4/8/16 kHz, gain byte 0-12 with 6 = flat (probably 1 dB steps,
+  not confirmed). The owner's speaker now: Custom curve "Sound Effects" = +4/+5/+4/+2 at
+  62/125/250/500 Hz, which boosts exactly the measured hump; room settings low cut 30 Hz
+  −24 dB/oct, acoustic space 0 dB, desktop control on.
 - Sound mode `0xD5` → `00 02 00 1E 03 00 01`: mode 0 (Monitor), index 2, low cut 30 Hz,
   slope −24 dB/oct, acoustic space 0 dB, desktop on. Modes: 0 Monitor, 1 Music, 2 Custom.
   **Switching tested 2026-11-16**: `0xC4` + all 7 bytes with only the first replaced
