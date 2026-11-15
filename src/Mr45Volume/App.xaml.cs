@@ -13,6 +13,8 @@ public partial class App : Application
     private const string SingleInstanceName = @"Local\Mr45Volume.SingleInstance";
     private const string ShowSignalName = @"Local\Mr45Volume.Show";
     private const string ExitSignalName = @"Local\Mr45Volume.Exit";
+    /// <summary>Shown until the connection tells us which model (MR4.5, MR3) it is.</summary>
+    private const string UnknownModel = "Edifier MR";
 
     private Mutex? _singleInstance;
     private EventWaitHandle? _showSignal;
@@ -95,7 +97,7 @@ public partial class App : Application
         _tray = new TaskbarIcon
         {
             Icon = _trayIconImage,
-            ToolTipText = "MR4.5 volume",
+            ToolTipText = $"{UnknownModel} volume",
             ContextFlyout = menu,
             ContextMenuMode = ContextMenuMode.PopupMenu,
             LeftClickCommand = new RelayCommand(ToggleWindow),
@@ -157,7 +159,7 @@ public partial class App : Application
         var state = _speaker.State;
         var volume = _speaker.Volume;
         var connected = state == SpeakerState.Connected && volume is not null;
-        var model = _speaker.ModelName ?? "MR4.5";
+        var model = _speaker.ModelName ?? UnknownModel;
 
         SetTrayText(connected ? volume!.Value.Current.ToString() : "–", dimmed: !connected);
 
@@ -182,7 +184,7 @@ public partial class App : Application
         if (_window is null)
         {
             _window = new VolumeWindow(_speaker);
-            _window.Update(_speaker.State, _speaker.Volume, _speaker.ModelName ?? "MR4.5", _speaker.Detail);
+            _window.Update(_speaker.State, _speaker.Volume, _speaker.ModelName ?? UnknownModel, _speaker.Detail);
         }
         return _window;
     }

@@ -25,9 +25,13 @@ public static class EdifierProtocol
 
     public static readonly IReadOnlyList<SpeakerModel> Models =
     [
+        // Verified on hardware with this app.
         new("MR4.5", new("00006303-0000-1000-8000-00805f9b34fb"), new("48096303-1a48-11e9-ab14-d663bd873d93")),
-        // Later hardware revision with the 8625 DSP (UUIDs from EdifierControl, not verified here).
+        // Later MR4.5 revision with the 8625 DSP (UUIDs from EdifierControl; not tested here).
         new("MR4.5 (8625)", new("00007c03-0000-1000-8000-00805f9b34fb"), new("48097c03-1a48-11e9-ab14-d663bd873d93")),
+        // MR3: same frames and [max, current] volume reply, own service (verified on an MR3 by
+        // omarchy-edifier-mr3 and EdifierControl; not tested with this app).
+        new("MR3", new("0000f300-0000-1000-8000-00805f9b34fb"), new("4809f301-1a48-11e9-ab14-d663bd873d93")),
     ];
 
     /// <summary>Client identifier byte. The speaker answers any value; it replies with 0xEC.</summary>
@@ -96,6 +100,15 @@ public static class EdifierProtocol
 
     public static SpeakerModel? ModelForAdvertisedUuid(Guid uuid) =>
         Models.FirstOrDefault(m => m.AdvertisedUuid == uuid);
+
+    /// <summary>
+    /// True if an advertisement looks like an Edifier monitor's control interface: a known
+    /// model UUID, or the "EDIFIER BLE" name with Edifier's manufacturer id (how the MR3 is
+    /// usually found). The exact model is settled after connecting, by its GATT service.
+    /// </summary>
+    public static bool IsControlAdvertisement(IEnumerable<Guid> serviceUuids, string? localName, IEnumerable<ushort> companyIds) =>
+        serviceUuids.Any(u => ModelForAdvertisedUuid(u) is not null)
+        || (string.Equals(localName, AdvertisedName, StringComparison.Ordinal) && companyIds.Contains(ManufacturerId));
 
     public static string Hex(ReadOnlySpan<byte> bytes) => Convert.ToHexString(bytes);
 

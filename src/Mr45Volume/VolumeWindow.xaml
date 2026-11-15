@@ -2,7 +2,7 @@
     x:Class="Mr45Volume.VolumeWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    Title="MR4.5 volume">
+    Title="Speaker volume">
 
     <Grid
         x:Name="Root"
@@ -24,7 +24,7 @@
             <TextBlock
                 x:Name="ModelText"
                 Style="{StaticResource BodyStrongTextBlockStyle}"
-                Text="MR4.5"
+                Text="Edifier MR"
                 VerticalAlignment="Center" />
             <TextBlock
                 x:Name="StatusText"

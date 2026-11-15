@@ -30,6 +30,7 @@ public sealed class SpeakerConnection : IAsyncDisposable
     private readonly Action<string> _log;
     private readonly object _gate = new();
     private readonly SemaphoreSlim _kick = new(0);
+    private readonly HashSet<ulong> _ignored = [];
     private CancellationTokenSource? _cts;
     private Task? _loop;
     private int _pendingSet = -1;
@@ -129,10 +130,19 @@ public sealed class SpeakerConnection : IAsyncDisposable
             try
             {
                 SetState(SpeakerState.Searching, failures == 0 ? null : Detail);
-                var (address, model) = await FindAsync(ct).ConfigureAwait(false);
-                _log($"Found {model.Name} at {FormatAddress(address)}.");
+                var address = await FindAsync(_ignored.ToHashSet(), ct).ConfigureAwait(false);
+                _log($"Found an Edifier control interface at {FormatAddress(address)}.");
                 SetState(SpeakerState.Connecting, null);
-                await ConnectAsync(address, ct).ConfigureAwait(false);
+                try
+                {
+                    await ConnectAsync(address, ct).ConfigureAwait(false);
+                }
+                catch (UnsupportedSpeakerException)
+                {
+                    // Some other Edifier BLE device; don't keep reconnecting to it this session.
+                    _ignored.Add(address);
+                    throw;
+                }
                 failures = 0;
                 SetState(SpeakerState.Connected, null);
                 await PumpAsync(ct).ConfigureAwait(false);
@@ -166,19 +176,18 @@ public sealed class SpeakerConnection : IAsyncDisposable
         }
     }
 
-    private static async Task<(ulong Address, SpeakerModel Model)> FindAsync(CancellationToken ct)
+    private static async Task<ulong> FindAsync(IReadOnlySet<ulong> ignored, CancellationToken ct)
     {
-        var found = new TaskCompletionSource<(ulong, SpeakerModel)>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var found = new TaskCompletionSource<ulong>(TaskCreationOptions.RunContinuationsAsynchronously);
         var watcher = new BluetoothLEAdvertisementWatcher { ScanningMode = BluetoothLEScanningMode.Active };
         watcher.Received += (_, args) =>
         {
-            foreach (var uuid in args.Advertisement.ServiceUuids)
+            if (ignored.Contains(args.BluetoothAddress)) return;
+            var adv = args.Advertisement;
+            if (EdifierProtocol.IsControlAdvertisement(
+                    adv.ServiceUuids, adv.LocalName, adv.ManufacturerData.Select(m => m.CompanyId)))
             {
-                if (EdifierProtocol.ModelForAdvertisedUuid(uuid) is { } model)
-                {
-                    found.TrySetResult((args.BluetoothAddress, model));
-                    return;
-                }
+                found.TrySetResult(args.BluetoothAddress);
             }
         };
         watcher.Stopped += (_, args) =>
@@ -228,7 +237,7 @@ public sealed class SpeakerConnection : IAsyncDisposable
                 break;
             }
         }
-        if (_service is null) throw new InvalidOperationException("This device has no MR4.5 control service.");
+        if (_service is null) throw new UnsupportedSpeakerException("This Edifier device has no supported MR control service.");
 
         _notify = await GetCharacteristicAsync(_service, EdifierProtocol.NotifyCharacteristic, ct).ConfigureAwait(false);
         _write = await GetCharacteristicAsync(_service, EdifierProtocol.WriteCharacteristic, ct).ConfigureAwait(false);
@@ -365,3 +374,6 @@ public sealed class SpeakerConnection : IAsyncDisposable
     private static string FormatAddress(ulong address) =>
         string.Join(":", Enumerable.Range(0, 6).Select(i => ((address >> (8 * (5 - i))) & 0xFF).ToString("X2")));
 }
+
+/// <summary>The device answered but has none of the known MR control services.</summary>
+public sealed class UnsupportedSpeakerException(string message) : Exception(message);

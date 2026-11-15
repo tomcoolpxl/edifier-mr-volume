@@ -67,7 +67,30 @@ public class EdifierProtocolTests
     public void Garbage_and_truncated_data_yield_no_frames(string hex) =>
         Assert.Empty(EdifierProtocol.ParseFrames(Bytes(hex)));
 
+    [Theory]
+    [InlineData("00006303-0000-1000-8000-00805f9b34fb", "MR4.5")]
+    [InlineData("0000f300-0000-1000-8000-00805f9b34fb", "MR3")]
+    public void Advertised_uuid_maps_to_model(string uuid, string model) =>
+        Assert.Equal(model, EdifierProtocol.ModelForAdvertisedUuid(new Guid(uuid))?.Name);
+
     [Fact]
-    public void Advertised_uuid_maps_to_mr45() =>
-        Assert.Equal("MR4.5", EdifierProtocol.ModelForAdvertisedUuid(new Guid("00006303-0000-1000-8000-00805f9b34fb"))?.Name);
+    public void Mr3_uses_its_own_control_service() =>
+        Assert.Equal(new Guid("4809f301-1a48-11e9-ab14-d663bd873d93"),
+            EdifierProtocol.Models.Single(m => m.Name == "MR3").ServiceUuid);
+
+    [Fact]
+    public void Advertisement_matches_on_known_uuid() =>
+        Assert.True(EdifierProtocol.IsControlAdvertisement(
+            [new Guid("00006303-0000-1000-8000-00805f9b34fb")], null, []));
+
+    [Fact]
+    public void Advertisement_matches_on_name_plus_edifier_manufacturer() =>
+        Assert.True(EdifierProtocol.IsControlAdvertisement([], "EDIFIER BLE", [0x07E0]));
+
+    [Theory]
+    [InlineData("EDIFIER BLE", (ushort)0x004C)]
+    [InlineData("EDIFIER MR3", (ushort)0x07E0)]
+    [InlineData(null, (ushort)0x07E0)]
+    public void Other_advertisements_are_ignored(string? name, ushort companyId) =>
+        Assert.False(EdifierProtocol.IsControlAdvertisement([Guid.NewGuid()], name, [companyId]));
 }
