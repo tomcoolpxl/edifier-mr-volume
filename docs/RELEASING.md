@@ -45,32 +45,43 @@ Preview the next release's notes before tagging:
 pwsh .github/scripts/release-notes.ps1 -Tag vNEXT -Out release-notes.md
 ```
 
-## Making a release
+## Making a release: one click
 
-1. Make sure `main` is green in CI.
-2. Raise `<Version>` in [`Directory.Build.props`](../Directory.Build.props), the only place
-   the version lives.
-3. Commit, tag and push:
+On GitHub: **Actions › Release › Run workflow**, on `main`, and pick which part of the version
+goes up one: **patch** (fixes), **minor** (features, a new speaker), **major** (breaking).
+[`.github/workflows/release.yml`](../.github/workflows/release.yml) then:
 
-   ```powershell
-   git commit -am "chore(release): 1.1.0"
-   git tag -a v1.1.0 -m "Edifier MR Volume 1.1.0"
-   git push origin main
-   git push origin v1.1.0
-   ```
+1. Runs CI on the commit `main` is at: tests, app build, smoke launch, installer
+   install/uninstall.
+2. Raises `<Version>` in [`Directory.Build.props`](../Directory.Build.props) (the only place
+   the version lives) and adds the release's entry at the top of [`CHANGELOG.md`](../CHANGELOG.md)
+   ([`prepare-release.ps1`](../.github/scripts/prepare-release.ps1)).
+3. Commits that as `chore(release): X.Y.Z` to `main`, tags `vX.Y.Z` and pushes both. If
+   `main` moved on while it ran, the push fails and nothing is published.
+4. Builds the assets with [`tools/package.ps1`](../tools/package.ps1): the self-contained zip,
+   the per-user installer (Inno Setup, [`packaging/inno`](../packaging/inno)) and a `.sha256`
+   for each.
+5. Writes the notes: the commits since the previous tag by type, the GitHub issues closed (as
+   completed) since then, and the install instructions; GitHub appends its list of merged
+   pull requests.
+6. Publishes the GitHub release with the four files attached.
 
-The tag starts [`.github/workflows/release.yml`](../.github/workflows/release.yml):
+Preview the next release's notes and changelog entry locally first:
 
-1. CI runs on the tagged commit: tests, app build, smoke launch.
-2. The tag must match `<Version>`; otherwise the release stops.
-3. `dotnet publish` builds the self-contained app; it is zipped as
-   `edifier-mr-volume-vX.Y.Z-win-x64.zip`, with a `.sha256` file beside it.
-4. The notes are written from the commits since the previous tag, and GitHub adds its list
-   of merged pull requests.
-5. The GitHub release is published with the zip and checksum attached.
+```powershell
+pwsh .github/scripts/release-notes.ps1 -Tag vNEXT -Out release-notes.md
+```
 
-A tag with a `-` (`v1.1.0-rc.1`) makes a pre-release. To rerun a release, start the
-workflow by hand under **Actions › Release › Run workflow** and name the tag.
+### By hand
 
-Feature ideas and bugs are tracked as GitHub issues (the **Feature request** and
-**Bug report** forms).
+Pushing a `vX.Y.Z` tag yourself also works (bump `<Version>` first, it must match); it builds
+and publishes that tag but writes no changelog entry. A tag with a `-` (`v1.1.0-rc.1`) makes
+a pre-release.
+
+### Locally
+
+`.\tools\package.ps1` builds the same four files into `artifacts\` (needs Inno Setup 6:
+`scoop install inno-setup` or the official installer).
+
+Bug reports and feature requests from users come in through the GitHub issue forms; their
+closed issues show up in the release notes.
