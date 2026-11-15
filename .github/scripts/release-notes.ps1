@@ -14,7 +14,10 @@
 
 param(
     [Parameter(Mandatory)][string]$Tag,
-    [string]$Out = 'release-notes.md'
+    [string]$Out = 'release-notes.md',
+    # The entry for CHANGELOG.md: "## <tag> (<date>)" and the sections, without the
+    # release's opening lines and without the install instructions.
+    [switch]$Changelog
 )
 
 $ErrorActionPreference = 'Stop'
@@ -29,12 +32,14 @@ if (git rev-parse -q --verify "refs/tags/$Tag") {
     $previous = git describe --tags --abbrev=0 HEAD 2>$null
 }
 if ($LASTEXITCODE -ne 0 -or -not $previous) {
+    $previous = $null
     $range = $head
     $title = '## Changes'
 } else {
     $range = "$previous..$head"
     $title = "## Changes since $previous"
 }
+if ($Changelog) { $title = "## $Tag ($(Get-Date -Format 'yyyy-MM-dd'))" }
 
 # Section order, and the types that feed each section.
 $sections = [ordered]@{
@@ -83,11 +88,35 @@ foreach ($line in $log) {
     }
 }
 
+# Issues closed as completed since the previous release, from GitHub: the gh CLI with a
+# token (GH_TOKEN in the workflows). Left out, with a warning, when that isn't available.
+# Issues closed as "not planned" don't count.
+$closedIssues = @()
+if (Get-Command gh -ErrorAction SilentlyContinue) {
+    try {
+        $since = if ($previous) { [DateTimeOffset](git log -1 --format=%cI $previous) } else { $null }
+        $until = if ($head -ne 'HEAD') { [DateTimeOffset](git log -1 --format=%cI $head) } else { $null }
+        $json = gh issue list --state closed --limit 300 --json number,title,closedAt,stateReason 2>$null
+        if ($LASTEXITCODE -ne 0) { throw 'gh issue list failed' }
+        foreach ($issue in ($json | ConvertFrom-Json | Sort-Object number)) {
+            if ($issue.stateReason -ne 'COMPLETED') { continue }
+            $closedAt = [DateTimeOffset]$issue.closedAt
+            if ($since -and $closedAt -le $since) { continue }
+            if ($until -and $closedAt -gt $until) { continue }
+            $closedIssues += "- #$($issue.number) $($issue.title)"
+        }
+    } catch {
+        Write-Warning "Closed issues left out of the notes: $_"
+    }
+} else {
+    Write-Warning 'Closed issues left out of the notes: the gh CLI is not installed.'
+}
+
 # A release may open with a few lines of its own, written by hand: what it is about,
 # before the commits. .github/release-notes/<tag>.md, when there is one.
 $body = @()
 $preface = Join-Path $PSScriptRoot '..' 'release-notes' "$Tag.md"
-if (Test-Path $preface) {
+if (-not $Changelog -and (Test-Path $preface)) {
     $body += Get-Content $preface -Encoding utf8
     $body += ''
 }
@@ -100,18 +129,25 @@ foreach ($name in $entries.Keys) {
     $body += $entries[$name]
     $body += ''
 }
+if ($closedIssues.Count -gt 0) {
+    $body += @('### Closed issues', '')
+    $body += $closedIssues
+    $body += ''
+}
 if ($body.Count -eq $commitsFrom) { $body += @('- No changes recorded.', '') }
 
-# How to install, under every release's notes.
-$body += @(
-    '## Install',
-    '',
-    "- **Portable**: unpack ``edifier-mr-volume-$Tag-win-x64.zip`` anywhere and run ``EdifierMrVolume.exe``. The folder is self-contained: .NET and the Windows App SDK runtime are included.",
-    '- **From source**: clone the repository and run `tools\install.ps1`, which installs per user under `%LOCALAPPDATA%\Programs\EdifierMrVolume` and adds a Start menu shortcut.',
-    '',
-    "Windows 10 2004 or later, x64. Unsigned, so Windows SmartScreen may warn once. The ``.sha256`` file holds the zip's checksum.",
-    ''
-)
+# How to install, under every release's notes (not in CHANGELOG.md).
+if (-not $Changelog) {
+    $body += @(
+        '## Install',
+        '',
+        "- **Installer**, per user, no admin: ``edifier-mr-volume-$Tag-win-x64-setup.exe``. Adds a Start menu shortcut and, if you tick it, starts with Windows; upgrades the installed version in place. Silent: ``/VERYSILENT /SUPPRESSMSGBOXES /NORESTART``.",
+        "- **Portable**: unpack ``edifier-mr-volume-$Tag-win-x64.zip`` anywhere and run ``EdifierMrVolume.exe``. Self-contained: .NET and the Windows App SDK runtime are included.",
+        '',
+        "Windows 10 2004 or later, x64. Unsigned, so Windows SmartScreen may warn once. Each ``.sha256`` file holds its asset's checksum.",
+        ''
+    )
+}
 
 $body | Set-Content -Path $Out -Encoding utf8
 Get-Content $Out

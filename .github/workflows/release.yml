@@ -1,55 +1,114 @@
 name: Release
 
+# Two ways in:
+#  - Actions › Release › Run workflow, pick patch/minor/major: the version goes up one, the
+#    changelog entry is written, "chore(release): X.Y.Z" is committed to main and tagged,
+#    then the release is built and published. Nothing to do locally.
+#  - Pushing a vX.Y.Z tag yourself: builds and publishes that tag (no bump, no changelog).
 on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Which part of the version goes up one: patch (fixes), minor (features), major (breaking)'
+        type: choice
+        options: [patch, minor, major]
+        default: patch
   push:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+*'
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Tag to release (e.g. v1.0.0). Leave empty when the run is started from the tag itself.'
-        required: false
-        default: ''
 
-# Read-only, except for the one job that publishes the release.
+# Read-only, except for the jobs that commit, tag and publish.
 permissions:
   contents: read
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
-  # Gate: CI on the commit being released.
+  # Gate: CI on the commit being released (for "Run workflow": the commit main was at).
   ci:
     name: CI gate
     uses: ./.github/workflows/ci.yml
     with:
-      ref: ${{ inputs.tag || github.ref }}
+      ref: ${{ github.sha }}
 
-  release:
-    name: Build and publish the release
+  prepare:
+    name: Bump the version and tag
     needs: ci
+    if: github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     permissions:
       contents: write
+      issues: read
+    outputs:
+      tag: ${{ steps.bump.outputs.tag }}
     steps:
+      - name: Only from main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "Run the release from main, not ${{ github.ref_name }}."
+          exit 1
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.tag || github.ref }}
-          # Full history and tags, for the release notes.
+          ref: ${{ github.sha }}
+          # Full history and tags, for the changelog; credentials kept for the push below.
           fetch-depth: 0
-          persist-credentials: false
 
-      # The tag reaches the script through the environment, never pasted into it, and must
+      - name: Raise the version and write the changelog entry
+        id: bump
+        shell: pwsh
+        env:
+          BUMP: ${{ inputs.bump }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = (./.github/scripts/prepare-release.ps1 -Part $env:BUMP | Select-Object -Last 1)
+          "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          git --no-pager diff --stat
+
+      # Pushed with the workflow's own token, so this tag doesn't start the tag-push path of
+      # this workflow a second time; the release job below publishes it.
+      - name: Commit, tag and push
+        shell: pwsh
+        env:
+          TAG: ${{ steps.bump.outputs.tag }}
+        run: |
+          $version = $env:TAG -replace '^v', ''
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -am "chore(release): $version"
+          git tag -a $env:TAG -m "Edifier MR Volume $version"
+          # Fails, and so stops the release, if main moved on since the run started.
+          git push origin HEAD:refs/heads/main
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git push origin $env:TAG
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+  release:
+    name: Build and publish the release
+    needs: [ci, prepare]
+    if: >-
+      always() && needs.ci.result == 'success' &&
+      (needs.prepare.result == 'success' || needs.prepare.result == 'skipped')
+    runs-on: windows-latest
+    permissions:
+      contents: write
+      issues: read
+    steps:
+      # The tag reaches the scripts through the environment, never pasted into them, and must
       # look like a release tag before anything else uses it.
       - name: Determine the release tag
         id: tag
         shell: pwsh
         env:
-          INPUT_TAG: ${{ inputs.tag }}
+          PREPARED_TAG: ${{ needs.prepare.outputs.tag }}
           REF_NAME: ${{ github.ref_name }}
         run: |
-          $tag = if ($env:INPUT_TAG) { $env:INPUT_TAG } else { $env:REF_NAME }
+          $tag = if ($env:PREPARED_TAG) { $env:PREPARED_TAG } else { $env:REF_NAME }
           if ($tag -notmatch '^v\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$') {
-            Write-Error "Not a release tag: '$tag'. Start the run from a tag, or name one."
+            Write-Error "Not a release tag: '$tag'."
             exit 1
           }
           $prerelease = if ($tag.Contains('-')) { 'true' } else { 'false' }
@@ -57,48 +116,38 @@ jobs:
           "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           "prerelease=$prerelease" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
-      - name: Check the tag matches the version in Directory.Build.props
-        shell: pwsh
-        env:
-          TAG: ${{ steps.tag.outputs.tag }}
-        run: |
-          $version = ([xml](Get-Content Directory.Build.props)).Project.PropertyGroup.Version |
-            Where-Object { $_ } | Select-Object -First 1
-          $tagBase = (($env:TAG -replace '^v', '') -split '-')[0]
-          if ($tagBase -ne $version) {
-            Write-Error "Tag $env:TAG does not match <Version>$version</Version> in Directory.Build.props."
-            exit 1
-          }
-          Write-Host "Tag $env:TAG matches version $version."
+      - name: Checkout the tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ steps.tag.outputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Set up .NET (version from global.json)
         uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           global-json-file: global.json
 
-      # Self-contained: .NET and the Windows App SDK runtime travel with the exe.
-      - name: Publish the app
-        run: >-
-          dotnet publish src/EdifierMrVolume/EdifierMrVolume.csproj
-          -c Release -p:Platform=x64 -r win-x64 --self-contained true -o publish
+      - name: Make sure Inno Setup is there
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup --no-progress -y
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
 
-      - name: Package the zip and its checksum
+      # Also checks that the tag matches <Version> in Directory.Build.props.
+      - name: Build the zip, the installer and their checksums
         shell: pwsh
         env:
           TAG: ${{ steps.tag.outputs.tag }}
-        run: |
-          $zip = "edifier-mr-volume-$env:TAG-win-x64.zip"
-          Copy-Item README.md, LICENSE publish/
-          Compress-Archive -Path publish/* -DestinationPath $zip
-          $hash = (Get-FileHash -Path $zip -Algorithm SHA256).Hash.ToLower()
-          "$hash  $zip" | Out-File -FilePath "$zip.sha256" -Encoding ascii
-          Write-Host "Archive: $zip ($([math]::Round((Get-Item $zip).Length / 1MB)) MB)"
-          Write-Host "SHA256:  $hash"
+        run: ./tools/package.ps1 -Tag $env:TAG
 
       - name: Write the release notes
         shell: pwsh
         env:
           TAG: ${{ steps.tag.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
         run: ./.github/scripts/release-notes.ps1 -Tag $env:TAG -Out release-notes.md
 
       - name: Publish the GitHub release
@@ -111,5 +160,7 @@ jobs:
           generate_release_notes: true
           prerelease: ${{ steps.tag.outputs.prerelease }}
           files: |
-            edifier-mr-volume-*-win-x64.zip
-            edifier-mr-volume-*-win-x64.zip.sha256
+            artifacts/edifier-mr-volume-*-win-x64.zip
+            artifacts/edifier-mr-volume-*-win-x64.zip.sha256
+            artifacts/edifier-mr-volume-*-win-x64-setup.exe
+            artifacts/edifier-mr-volume-*-win-x64-setup.exe.sha256
