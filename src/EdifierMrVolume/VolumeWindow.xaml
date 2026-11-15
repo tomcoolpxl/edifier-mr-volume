@@ -245,6 +245,19 @@
                         </controls:SettingsExpander.Items>
                     </controls:SettingsExpander>
 
+                    <TextBlock Margin="4,12,0,4" Style="{StaticResource BodyStrongTextBlockStyle}" Text="Power" />
+                    <controls:SettingsCard
+                        Header="Switch off when the PC sleeps"
+                        Description="Switches the speakers off when Windows goes to sleep. You switch them back on with their own power button.">
+                        <controls:SettingsCard.HeaderIcon>
+                            <FontIcon Glyph="&#xE7E8;" />
+                        </controls:SettingsCard.HeaderIcon>
+                        <ToggleSwitch
+                            x:Name="SleepOffSwitch"
+                            AutomationProperties.Name="Switch off when the PC sleeps"
+                            Toggled="SleepOffSwitch_Toggled" />
+                    </controls:SettingsCard>
+
                     <TextBlock Margin="4,12,0,4" Style="{StaticResource BodyStrongTextBlockStyle}" Text="Connection" />
                     <controls:SettingsExpander x:Name="DiagExpander" Header="Diagnostics">
                         <controls:SettingsExpander.HeaderIcon>

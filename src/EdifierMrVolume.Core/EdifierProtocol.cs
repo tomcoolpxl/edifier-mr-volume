@@ -55,6 +55,8 @@ public static class EdifierProtocol
     public const byte CmdGetSoundMode = 0xD5;
     /// <summary>Sets the same 7 bytes; the speaker acks 01 and pushes 0xD5.</summary>
     public const byte CmdSetSoundMode = 0xC4;
+    /// <summary>Switches the speakers off; they must be switched on by hand.</summary>
+    public const byte CmdPowerOff = 0xCE;
 
     public static readonly IReadOnlyList<string> SoundModeNames = ["Monitor", "Music", "Custom"];
 
@@ -87,6 +89,8 @@ public static class EdifierProtocol
         if (mode < 0 || mode >= SoundModeNames.Count) throw new ArgumentOutOfRangeException(nameof(mode));
         return BuildCommand(CmdSetSoundMode, [(byte)mode, .. current.Tuning]);
     }
+
+    public static byte[] PowerOff() => BuildCommand(CmdPowerOff);
 
     /// <summary>Volume range the MR4.5 reports when it doesn't say otherwise.</summary>
     public const int DefaultMaxVolume = 30;

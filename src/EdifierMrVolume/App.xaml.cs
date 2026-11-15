@@ -1,7 +1,6 @@
 using System.Drawing.Imaging;
 using System.Reflection;
 using H.NotifyIcon;
-using Microsoft.Windows.System.Power;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -152,23 +151,34 @@ public partial class App : Application
             EnsureWindow().Peek(_settings.HideAfterSeconds);
     }
 
-    /// <summary>After sleep, retry the speaker straight away instead of waiting out the back-off.</summary>
+    /// <summary>
+    /// Sleep and wake, through Windows' suspend/resume callback: Windows waits for it before it
+    /// sleeps, which gives "switch off when the PC sleeps" time to reach the speaker. On wake,
+    /// retry the speaker straight away instead of waiting out the back-off.
+    /// </summary>
     private void WatchForWakeUp()
     {
-        try
+        if (!PowerNotifications.Register(OnPowerEvent))
+            Log.Write("No sleep/wake notifications available.");
+    }
+
+    private void OnPowerEvent(PowerNotifications.Event power)
+    {
+        switch (power)
         {
-            PowerManager.SystemSuspendStatusChanged += (_, _) =>
-            {
-                // The event carries no data; the status is read separately and may already
-                // have moved on, so any change other than "entering sleep" counts as a wake-up.
-                var status = PowerManager.SystemSuspendStatus;
-                Log.Write($"Power: {status}");
-                if (status != SystemSuspendStatus.Entering) _speaker.Nudge();
-            };
-        }
-        catch (Exception ex)
-        {
-            Log.Write($"No sleep/wake notifications: {ex.Message}");
+            case PowerNotifications.Event.Suspend:
+                Log.Write("Power: going to sleep.");
+                if (_settings.PowerOffOnSleep)
+                {
+                    // Runs on Windows' notification thread; Windows waits (up to ~2 s) for it.
+                    var sent = _speaker.PowerOffAsync(TimeSpan.FromSeconds(1.5)).GetAwaiter().GetResult();
+                    Log.Write(sent ? "Switched the speakers off for sleep." : "Could not switch the speakers off for sleep.");
+                }
+                break;
+            case PowerNotifications.Event.Resume:
+                Log.Write("Power: woke up.");
+                _speaker.Nudge();
+                break;
         }
     }
 

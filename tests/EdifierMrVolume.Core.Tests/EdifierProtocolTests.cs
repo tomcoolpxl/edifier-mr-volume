@@ -115,6 +115,9 @@ public class EdifierProtocolTests
     }
 
     [Fact]
+    public void Power_off_packet() => Assert.Equal(Bytes("AA 0C CE 00 00 84"), EdifierProtocol.PowerOff());
+
+    [Fact]
     public void Firmware_reply_decodes()
     {
         var frame = Assert.Single(EdifierProtocol.ParseFrames(Bytes("BB EC C6 00 03 01 00 00 71")));

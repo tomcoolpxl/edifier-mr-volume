@@ -121,6 +121,28 @@ public sealed class SpeakerConnection : IAsyncDisposable
         return true;
     }
 
+    /// <summary>
+    /// Switches the speakers off right away (not queued), for the power-off button and for
+    /// "switch off when the PC sleeps", where Windows gives only a moment. True if it was sent.
+    /// </summary>
+    public async Task<bool> PowerOffAsync(TimeSpan timeout)
+    {
+        var write = _write;
+        if (write is null || State != SpeakerState.Connected) return false;
+        try
+        {
+            var status = await write.WriteValueAsync(EdifierProtocol.PowerOff().AsBuffer(), _writeOption)
+                .AsTask().WaitAsync(timeout).ConfigureAwait(false);
+            _log($"Power off sent: {status}.");
+            return status == GattCommunicationStatus.Success;
+        }
+        catch (Exception ex)
+        {
+            _log($"Power off failed: {ex.Message}");
+            return false;
+        }
+    }
+
     public bool IsRunning { get { lock (_gate) return _cts is not null; } }
 
     public SpeakerDiagnostics GetDiagnostics()
