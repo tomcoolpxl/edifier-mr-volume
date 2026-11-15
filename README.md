@@ -6,7 +6,7 @@ control interface (the one the EDIFIER ConneX phone app uses), so it doesn't dep
 Windows volume slider. Control runs over its own Bluetooth LE link, separate from the audio
 input (tested with the speakers fed by a USB audio interface).
 
-The volume in the tray (the **2** on the left):
+The volume in the tray (the **13** on the left):
 
 ![Taskbar with the speaker volume shown as a tray icon](docs/images/tray.png)
 

@@ -13,8 +13,11 @@ public partial class App : Application
     private const string SingleInstanceName = @"Local\EdifierMrVolume.SingleInstance";
     private const string ShowSignalName = @"Local\EdifierMrVolume.Show";
     private const string ExitSignalName = @"Local\EdifierMrVolume.Exit";
-    /// <summary>Shown until the connection tells us which model (MR4.5, MR3) it is.</summary>
+    /// <summary>Shown until the connection tells us which model (MR4.5, MR3, MR5) it is.</summary>
     private const string UnknownModel = "Edifier MR";
+
+    /// <summary>"Edifier MR4.5", "Edifier MR3", ... once connected; "Edifier MR" before that.</summary>
+    private string DisplayModel => _speaker.ModelName is { } model ? $"Edifier {model}" : UnknownModel;
 
     private Mutex? _singleInstance;
     private EventWaitHandle? _showSignal;
@@ -159,7 +162,7 @@ public partial class App : Application
         var state = _speaker.State;
         var volume = _speaker.Volume;
         var connected = state == SpeakerState.Connected && volume is not null;
-        var model = _speaker.ModelName ?? UnknownModel;
+        var model = DisplayModel;
 
         SetTrayText(connected ? volume!.Value.Current.ToString() : "–", dimmed: !connected);
 
@@ -184,7 +187,7 @@ public partial class App : Application
         if (_window is null)
         {
             _window = new VolumeWindow(_speaker);
-            _window.Update(_speaker.State, _speaker.Volume, _speaker.ModelName ?? UnknownModel, _speaker.Detail);
+            _window.Update(_speaker.State, _speaker.Volume, DisplayModel, _speaker.Detail);
         }
         return _window;
     }
