@@ -47,6 +47,10 @@ public static class EdifierProtocol
 
     public const byte CmdGetVolume = 0x66;
     public const byte CmdSetVolume = 0x67;
+    /// <summary>Firmware version; the MR4.5 answers <c>01 00 00</c> for 1.0.0.</summary>
+    public const byte CmdGetFirmware = 0xC6;
+    /// <summary>Model name as ASCII; the MR4.5 answers "EDIFIER MR4.5".</summary>
+    public const byte CmdGetModelName = 0xC9;
 
     /// <summary>Volume range the MR4.5 reports when it doesn't say otherwise.</summary>
     public const int DefaultMaxVolume = 30;
@@ -104,6 +108,22 @@ public static class EdifierProtocol
             ? new VolumeLevel(frame.Payload[1], frame.Payload[0])
             : new VolumeLevel(frame.Payload[0], DefaultMaxVolume);
         return level.Max > 0 && level.Current <= level.Max;
+    }
+
+    public static bool TryDecodeFirmware(Frame frame, out string version)
+    {
+        version = "";
+        if (!frame.ChecksumOk || frame.Command != CmdGetFirmware || frame.Payload.Length == 0) return false;
+        version = string.Join('.', frame.Payload);
+        return true;
+    }
+
+    public static bool TryDecodeModelName(Frame frame, out string name)
+    {
+        name = "";
+        if (!frame.ChecksumOk || frame.Command != CmdGetModelName || frame.Payload.Length == 0) return false;
+        name = System.Text.Encoding.UTF8.GetString(frame.Payload).Trim('\0', ' ');
+        return name.Length > 0;
     }
 
     public static SpeakerModel? ModelForAdvertisedUuid(Guid uuid) =>

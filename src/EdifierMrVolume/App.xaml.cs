@@ -1,5 +1,7 @@
 using System.Drawing.Imaging;
+using System.Reflection;
 using H.NotifyIcon;
+using Microsoft.Windows.System.Power;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -31,6 +33,7 @@ public partial class App : Application
     private ToggleMenuFlyoutItem _connectItem = null!;
     private ToggleMenuFlyoutItem _autostartItem = null!;
     private VolumeWindow? _window;
+    private AppSettings _settings = new();
     private readonly UISettings _uiSettings = new();
     private bool _exiting;
 
@@ -53,27 +56,37 @@ public partial class App : Application
             return;
         }
 
+        // "--exit" asks a running copy to shut down cleanly (used by tools\install.ps1);
+        // with no copy running it just quits.
+        if (commandLine.Contains("--exit"))
+        {
+            Signal(ExitSignalName);
+            Exit();
+            return;
+        }
+
         _singleInstance = new Mutex(initiallyOwned: true, SingleInstanceName, out var createdNew);
         if (!createdNew)
         {
-            // Already running: a second launch (e.g. the Start menu shortcut) opens its flyout,
-            // and "--exit" asks it to shut down cleanly (used by tools\install.ps1).
-            Signal(commandLine.Contains("--exit") ? ExitSignalName : ShowSignalName);
+            // Already running: a second launch (e.g. the Start menu shortcut) opens its flyout.
+            Signal(ShowSignalName);
             Exit();
             return;
         }
 
         _ui = DispatcherQueue.GetForCurrentThread();
-        Log.Write("Started.");
+        Log.Write($"Started, version {AppVersion}.");
         ListenForSignals();
+        _settings = AppSettings.Load();
 
         _speaker = new SpeakerConnection(Log.Write);
         _speaker.StateChanged += (_, _) => _ui.TryEnqueue(Refresh);
-        _speaker.VolumeChanged += (_, _) => _ui.TryEnqueue(Refresh);
+        _speaker.VolumeChanged += (_, change) => _ui.TryEnqueue(() => OnVolumeChanged(change));
 
         CreateTrayIcon();
         // Taskbar switched between light and dark: redraw the digits in the matching colour.
         _uiSettings.ColorValuesChanged += (_, _) => _ui.TryEnqueue(Refresh);
+        WatchForWakeUp();
 
         _speaker.Start();
         Refresh();
@@ -108,6 +121,34 @@ public partial class App : Application
         };
         // Efficiency mode would throttle the BLE polling that follows the knob.
         _tray.ForceCreate(enablesEfficiencyMode: false);
+    }
+
+    /// <summary>The volume changed: redraw, and pop the flyout up if it came from the speaker.</summary>
+    private void OnVolumeChanged(VolumeChange change)
+    {
+        Refresh();
+        if (change.FromSpeaker && _settings.ShowOnKnobTurn && !_exiting)
+            EnsureWindow().Peek(_settings.HideAfterSeconds);
+    }
+
+    /// <summary>After sleep, retry the speaker straight away instead of waiting out the back-off.</summary>
+    private void WatchForWakeUp()
+    {
+        try
+        {
+            PowerManager.SystemSuspendStatusChanged += (_, _) =>
+            {
+                // The event carries no data; the status is read separately and may already
+                // have moved on, so any change other than "entering sleep" counts as a wake-up.
+                var status = PowerManager.SystemSuspendStatus;
+                Log.Write($"Power: {status}");
+                if (status != SystemSuspendStatus.Entering) _speaker.Nudge();
+            };
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"No sleep/wake notifications: {ex.Message}");
+        }
     }
 
     private void ListenForSignals()
@@ -177,8 +218,17 @@ public partial class App : Application
         };
         _connectItem.IsChecked = _speaker.IsRunning;
         _autostartItem.IsChecked = Autostart.IsEnabled;
-        _window?.Update(state, volume, model, _speaker.Detail);
+        if (_window is not null)
+        {
+            _window.Update(state, volume, model, _speaker.Detail);
+            _window.UpdateDiagnostics(_speaker.GetDiagnostics(), model, AppVersion);
+        }
     }
+
+    /// <summary>The version from Directory.Build.props, e.g. "1.0.0".</summary>
+    private static string AppVersion { get; } =
+        (typeof(App).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+            ?? typeof(App).Assembly.GetName().Version?.ToString() ?? "?").Split('+')[0];
 
     private static string Trim(string text, int max) => text.Length <= max ? text : text[..(max - 1)] + "…";
 
@@ -186,10 +236,20 @@ public partial class App : Application
     {
         if (_window is null)
         {
-            _window = new VolumeWindow(_speaker);
+            _window = new VolumeWindow(_speaker, _settings, ReconnectAsync);
             _window.Update(_speaker.State, _speaker.Volume, DisplayModel, _speaker.Detail);
+            _window.UpdateDiagnostics(_speaker.GetDiagnostics(), DisplayModel, AppVersion);
         }
         return _window;
+    }
+
+    /// <summary>Diagnose's Reconnect button: drop the link and open it again.</summary>
+    private async Task ReconnectAsync()
+    {
+        Log.Write("User asked to reconnect.");
+        await _speaker.StopAsync();
+        _speaker.Start();
+        Refresh();
     }
 
     private void ToggleWindow() => EnsureWindow().Toggle();

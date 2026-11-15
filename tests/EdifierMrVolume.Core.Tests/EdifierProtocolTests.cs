@@ -86,6 +86,31 @@ public class EdifierProtocolTests
     public void Generic_services_are_not_a_model() =>
         Assert.Null(EdifierProtocol.ModelForService(new Guid("00001800-0000-1000-8000-00805f9b34fb")));
 
+    [Fact]
+    public void Firmware_reply_decodes()
+    {
+        var frame = Assert.Single(EdifierProtocol.ParseFrames(Bytes("BB EC C6 00 03 01 00 00 71")));
+        Assert.True(EdifierProtocol.TryDecodeFirmware(frame, out var version));
+        Assert.Equal("1.0.0", version);
+    }
+
+    [Fact]
+    public void Model_name_reply_decodes()
+    {
+        var frame = Assert.Single(EdifierProtocol.ParseFrames(
+            Bytes("BB EC C9 00 0D 45 44 49 46 49 45 52 20 4D 52 34 2E 35 CB")));
+        Assert.True(EdifierProtocol.TryDecodeModelName(frame, out var name));
+        Assert.Equal("EDIFIER MR4.5", name);
+    }
+
+    [Fact]
+    public void Volume_reply_is_not_firmware_or_name()
+    {
+        var frame = Assert.Single(EdifierProtocol.ParseFrames(Bytes("BB EC 66 00 02 1E 13 40")));
+        Assert.False(EdifierProtocol.TryDecodeFirmware(frame, out _));
+        Assert.False(EdifierProtocol.TryDecodeModelName(frame, out _));
+    }
+
     /// <summary>MR5 capture published by Edifier-IR-remote (PROTOCOL.md): same layout as the MR4.5.</summary>
     [Fact]
     public void Mr5_volume_capture_decodes()

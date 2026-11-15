@@ -18,26 +18,62 @@ public enum SpeakerState
 }
 
 /// <summary>
-/// Keeps one BLE control connection to an MR4.5 open: finds it, connects, polls the volume,
-/// applies volume requests and reconnects when the link drops. Events are raised on a
-/// background thread.
+/// A volume update. <see cref="FromSpeaker"/> is true for changes made on the speaker itself
+/// (knob, phone app); false for echoes of this app's own requests and for the first reading
+/// after connecting.
+/// </summary>
+public readonly record struct VolumeChange(VolumeLevel Level, bool FromSpeaker);
+
+/// <summary>A snapshot for the Diagnose view.</summary>
+public sealed record SpeakerDiagnostics(
+    SpeakerState State,
+    string? Model,
+    string? DeviceName,
+    string? Firmware,
+    string? Address,
+    DateTimeOffset? ConnectedSince,
+    string? LastError,
+    int Reconnects);
+
+/// <summary>
+/// Keeps one BLE control connection to an Edifier MR speaker open: finds it, connects, polls
+/// the volume, applies volume requests and reconnects when the link drops. Events are raised
+/// on a background thread.
 /// </summary>
 public sealed class SpeakerConnection : IAsyncDisposable
 {
     private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(500);
     private static readonly TimeSpan SilenceTimeout = TimeSpan.FromSeconds(5);
 
+    /// <summary>
+    /// How long Windows may report "disconnected" before we believe it. It sometimes does so
+    /// right after connecting (e.g. when another process has just released the link) while
+    /// the link stays usable.
+    /// </summary>
+    private const long BlipGraceMs = 1500;
+
+    /// <summary>Volume changes arriving this soon after our own request are its echo.</summary>
+    private const long OwnChangeWindowMs = 1500;
+
     private readonly Action<string> _log;
     private readonly object _gate = new();
     private readonly SemaphoreSlim _kick = new(0);
+    private readonly SemaphoreSlim _wake = new(0);
     private readonly HashSet<ulong> _ignored = [];
     private CancellationTokenSource? _cts;
     private Task? _loop;
     private int _pendingSet = -1;
+    private long _lastSetAt = long.MinValue / 2;
 
     private SpeakerState _state = SpeakerState.Stopped;
     private VolumeLevel? _volume;
     private string? _detail;
+    private string? _lastError;
+    private string? _firmware;
+    private string? _deviceName;
+    private string? _address;
+    private DateTimeOffset? _connectedSince;
+    private int _connects;
 
     // Live link. Only the loop task creates and tears these down.
     private BluetoothLEDevice? _device;
@@ -46,17 +82,19 @@ public sealed class SpeakerConnection : IAsyncDisposable
     private GattCharacteristic? _notify;
     private GattCharacteristic? _write;
     private GattWriteOption _writeOption;
+    private volatile bool _linkSuspect;
     private volatile bool _linkLost;
+    private long _suspectSince;
     private long _lastRxTicks;
 
     public SpeakerConnection(Action<string>? log = null) => _log = log ?? (_ => { });
 
     public event EventHandler? StateChanged;
-    public event EventHandler<VolumeLevel>? VolumeChanged;
+    public event EventHandler<VolumeChange>? VolumeChanged;
 
     public SpeakerState State { get { lock (_gate) return _state; } }
 
-    /// <summary>Last volume the speaker reported, or null before the first reply.</summary>
+    /// <summary>Last volume the speaker reported on the current link, or null.</summary>
     public VolumeLevel? Volume { get { lock (_gate) return _volume; } }
 
     /// <summary>Human-readable reason for the current state (last error), if any.</summary>
@@ -65,6 +103,15 @@ public sealed class SpeakerConnection : IAsyncDisposable
     public string? ModelName { get; private set; }
 
     public bool IsRunning { get { lock (_gate) return _cts is not null; } }
+
+    public SpeakerDiagnostics GetDiagnostics()
+    {
+        lock (_gate)
+        {
+            return new SpeakerDiagnostics(_state, ModelName, _deviceName, _firmware, _address,
+                _connectedSince, _lastError, Math.Max(0, _connects - 1));
+        }
+    }
 
     public void Start()
     {
@@ -115,6 +162,16 @@ public sealed class SpeakerConnection : IAsyncDisposable
         Kick();
     }
 
+    /// <summary>
+    /// Retry straight away with a fresh back-off, e.g. after Windows wakes from sleep.
+    /// A connection that looks fine is left alone; the silence check catches a dead one.
+    /// </summary>
+    public void Nudge()
+    {
+        if (_wake.CurrentCount == 0) _wake.Release();
+        Kick();
+    }
+
     public async ValueTask DisposeAsync() => await StopAsync().ConfigureAwait(false);
 
     private void Kick()
@@ -144,6 +201,13 @@ public sealed class SpeakerConnection : IAsyncDisposable
                     throw;
                 }
                 failures = 0;
+                _wake.Wait(0); // a wake-up from before this connection is no longer needed
+                lock (_gate)
+                {
+                    _connectedSince = DateTimeOffset.Now;
+                    _connects++;
+                    _address = FormatAddress(address);
+                }
                 SetState(SpeakerState.Connected, null);
                 await PumpAsync(ct).ConfigureAwait(false);
                 if (!ct.IsCancellationRequested) _log("Link lost; reconnecting.");
@@ -156,7 +220,11 @@ public sealed class SpeakerConnection : IAsyncDisposable
             {
                 failures++;
                 _log($"Connection attempt {failures} failed: {ex.Message}");
-                lock (_gate) _detail = ex.Message;
+                lock (_gate)
+                {
+                    _detail = ex.Message;
+                    _lastError = $"{DateTime.Now:HH:mm:ss} {ex.Message}";
+                }
             }
             finally
             {
@@ -167,7 +235,11 @@ public sealed class SpeakerConnection : IAsyncDisposable
             var delay = TimeSpan.FromSeconds(Math.Min(30, 2 * Math.Max(1, failures)));
             try
             {
-                await Task.Delay(delay, ct).ConfigureAwait(false);
+                if (await _wake.WaitAsync(delay, ct).ConfigureAwait(false))
+                {
+                    _log("Woken up; retrying now.");
+                    failures = 0;
+                }
             }
             catch (OperationCanceledException)
             {
@@ -215,6 +287,10 @@ public sealed class SpeakerConnection : IAsyncDisposable
     private async Task ConnectAsync(ulong address, CancellationToken ct)
     {
         _linkLost = false;
+        _linkSuspect = false;
+        // A request made before this link existed is stale; don't apply it now.
+        Interlocked.Exchange(ref _pendingSet, -1);
+
         _device = await BluetoothLEDevice.FromBluetoothAddressAsync(address).AsTask(ct).ConfigureAwait(false)
             ?? throw new InvalidOperationException("Windows could not open the speaker.");
         _device.ConnectionStatusChanged += OnConnectionStatusChanged;
@@ -271,20 +347,49 @@ public sealed class SpeakerConnection : IAsyncDisposable
     {
         Interlocked.Exchange(ref _lastRxTicks, Environment.TickCount64);
         var nextPoll = 0L;
-        while (!ct.IsCancellationRequested && !_linkLost)
+        var askedForInfo = false;
+        while (!ct.IsCancellationRequested)
         {
+            if (_linkSuspect)
+            {
+                // Windows said "disconnected". Believe it only if it lasts.
+                if (_device?.ConnectionStatus == BluetoothConnectionStatus.Connected)
+                {
+                    _linkSuspect = false;
+                    _log("Windows briefly reported the link as down; it is still up.");
+                }
+                else if (Environment.TickCount64 - Interlocked.Read(ref _suspectSince) > BlipGraceMs)
+                {
+                    _linkLost = true;
+                    return;
+                }
+                else
+                {
+                    await _kick.WaitAsync(TimeSpan.FromMilliseconds(200), ct).ConfigureAwait(false);
+                    continue;
+                }
+            }
+
             var wait = nextPoll - Environment.TickCount64;
             if (wait > 0) await _kick.WaitAsync(TimeSpan.FromMilliseconds(wait), ct).ConfigureAwait(false);
-            if (_linkLost || ct.IsCancellationRequested) break;
+            if (ct.IsCancellationRequested || _linkSuspect) continue;
 
             var target = Interlocked.Exchange(ref _pendingSet, -1);
             if (target >= 0)
             {
+                Interlocked.Exchange(ref _lastSetAt, Environment.TickCount64);
                 await WriteAsync(EdifierProtocol.SetVolume(target, Volume?.Max ?? EdifierProtocol.DefaultMaxVolume), ct)
                     .ConfigureAwait(false);
                 // The speaker pushes its new level after a set; poll again soon regardless.
                 nextPoll = Environment.TickCount64 + 250;
                 continue;
+            }
+
+            if (!askedForInfo)
+            {
+                askedForInfo = true;
+                await WriteAsync(EdifierProtocol.BuildCommand(EdifierProtocol.CmdGetFirmware), ct).ConfigureAwait(false);
+                await WriteAsync(EdifierProtocol.BuildCommand(EdifierProtocol.CmdGetModelName), ct).ConfigureAwait(false);
             }
 
             if (Environment.TickCount64 >= nextPoll)
@@ -310,26 +415,54 @@ public sealed class SpeakerConnection : IAsyncDisposable
         Interlocked.Exchange(ref _lastRxTicks, Environment.TickCount64);
         foreach (var frame in EdifierProtocol.ParseFrames(args.CharacteristicValue.ToArray()))
         {
-            if (!EdifierProtocol.TryDecodeVolume(frame, out var level)) continue;
-            bool changed;
-            lock (_gate)
+            if (EdifierProtocol.TryDecodeVolume(frame, out var level))
             {
-                changed = _volume != level;
-                _volume = level;
+                VolumeLevel? previous;
+                lock (_gate)
+                {
+                    previous = _volume;
+                    _volume = level;
+                }
+                if (previous == level) continue;
+                var ownEcho = Environment.TickCount64 - Interlocked.Read(ref _lastSetAt) < OwnChangeWindowMs;
+                VolumeChanged?.Invoke(this, new VolumeChange(level, FromSpeaker: previous is not null && !ownEcho));
             }
-            if (changed) VolumeChanged?.Invoke(this, level);
+            else if (EdifierProtocol.TryDecodeFirmware(frame, out var firmware))
+            {
+                lock (_gate) _firmware = firmware;
+                StateChanged?.Invoke(this, EventArgs.Empty);
+            }
+            else if (EdifierProtocol.TryDecodeModelName(frame, out var name))
+            {
+                lock (_gate) _deviceName = name;
+                StateChanged?.Invoke(this, EventArgs.Empty);
+            }
         }
     }
 
     private void OnConnectionStatusChanged(BluetoothLEDevice sender, object args)
     {
-        if (sender.ConnectionStatus != BluetoothConnectionStatus.Disconnected) return;
-        _linkLost = true;
+        if (sender.ConnectionStatus == BluetoothConnectionStatus.Disconnected)
+        {
+            Interlocked.Exchange(ref _suspectSince, Environment.TickCount64);
+            _linkSuspect = true;
+        }
+        else
+        {
+            _linkSuspect = false;
+        }
         Kick();
     }
 
     private async Task TearDownAsync()
     {
+        Interlocked.Exchange(ref _pendingSet, -1);
+        lock (_gate)
+        {
+            _volume = null;
+            _connectedSince = null;
+        }
+
         var notify = _notify;
         if (notify is not null)
         {

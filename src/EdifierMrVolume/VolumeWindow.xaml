@@ -4,65 +4,196 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="Speaker volume">
 
-    <Grid
-        x:Name="Root"
-        Padding="20,14,20,16"
-        RowSpacing="8"
-        Background="Transparent"
-        KeyDown="Root_KeyDown"
-        PointerWheelChanged="Root_PointerWheelChanged">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+    <Grid x:Name="Root" Background="Transparent" KeyDown="Root_KeyDown">
 
-        <Grid>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <TextBlock
-                x:Name="ModelText"
-                Style="{StaticResource BodyStrongTextBlockStyle}"
-                Text="Edifier MR"
-                VerticalAlignment="Center" />
-            <TextBlock
-                x:Name="StatusText"
-                Grid.Column="1"
-                Style="{StaticResource CaptionTextBlockStyle}"
-                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                VerticalAlignment="Center" />
+        <!-- Main view: model, status, settings button, slider and level. -->
+        <Grid
+            x:Name="MainView"
+            Padding="20,8,12,16"
+            RowSpacing="4"
+            PointerWheelChanged="MainView_PointerWheelChanged">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Grid ColumnSpacing="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock
+                    x:Name="ModelText"
+                    Style="{StaticResource BodyStrongTextBlockStyle}"
+                    Text="Edifier MR"
+                    VerticalAlignment="Center" />
+                <TextBlock
+                    x:Name="StatusText"
+                    Grid.Column="1"
+                    Style="{StaticResource CaptionTextBlockStyle}"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    VerticalAlignment="Center" />
+                <Button
+                    x:Name="SettingsButton"
+                    Grid.Column="2"
+                    Padding="6"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    AutomationProperties.Name="Settings and diagnostics"
+                    ToolTipService.ToolTip="Settings and diagnostics"
+                    Click="SettingsButton_Click">
+                    <FontIcon Glyph="&#xE713;" FontSize="14" />
+                </Button>
+            </Grid>
+
+            <Grid Grid.Row="1" ColumnSpacing="12" Padding="0,0,8,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <FontIcon
+                    Glyph="&#xE767;"
+                    FontSize="18"
+                    VerticalAlignment="Center" />
+                <Slider
+                    x:Name="VolumeSlider"
+                    Grid.Column="1"
+                    Minimum="0"
+                    Maximum="30"
+                    StepFrequency="1"
+                    SmallChange="1"
+                    LargeChange="3"
+                    IsEnabled="False"
+                    VerticalAlignment="Center"
+                    AutomationProperties.Name="Speaker volume"
+                    ValueChanged="VolumeSlider_ValueChanged" />
+                <TextBlock
+                    x:Name="VolumeText"
+                    Grid.Column="2"
+                    MinWidth="30"
+                    Style="{StaticResource SubtitleTextBlockStyle}"
+                    Text="–"
+                    TextAlignment="Right"
+                    VerticalAlignment="Center" />
+            </Grid>
         </Grid>
 
-        <Grid Grid.Row="1" ColumnSpacing="12">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <FontIcon
-                Glyph="&#xE767;"
-                FontSize="18"
-                VerticalAlignment="Center" />
-            <Slider
-                x:Name="VolumeSlider"
-                Grid.Column="1"
-                Minimum="0"
-                Maximum="30"
-                StepFrequency="1"
-                SmallChange="1"
-                LargeChange="3"
-                IsEnabled="False"
-                VerticalAlignment="Center"
-                ValueChanged="VolumeSlider_ValueChanged" />
-            <TextBlock
-                x:Name="VolumeText"
-                Grid.Column="2"
-                MinWidth="30"
-                Style="{StaticResource SubtitleTextBlockStyle}"
-                Text="–"
-                TextAlignment="Right"
-                VerticalAlignment="Center" />
-        </Grid>
+        <!-- Settings and diagnostics, behind the gear button. -->
+        <ScrollViewer
+            x:Name="SettingsView"
+            Visibility="Collapsed"
+            VerticalScrollBarVisibility="Auto">
+            <StackPanel Padding="12,8,20,16" Spacing="10">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <Button
+                        x:Name="BackButton"
+                        Padding="6"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        AutomationProperties.Name="Back to volume"
+                        ToolTipService.ToolTip="Back"
+                        Click="BackButton_Click">
+                        <FontIcon Glyph="&#xE72B;" FontSize="14" />
+                    </Button>
+                    <TextBlock
+                        Style="{StaticResource BodyStrongTextBlockStyle}"
+                        Text="Settings"
+                        VerticalAlignment="Center" />
+                </StackPanel>
+
+                <StackPanel Padding="8,0,0,0" Spacing="10">
+                    <!-- Laid out like a Windows 11 Settings card: a noun label, a line saying
+                         what it does, and the switch on the right. -->
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center" Spacing="2">
+                            <TextBlock Text="Auto-open panel" />
+                            <TextBlock
+                                Style="{StaticResource CaptionTextBlockStyle}"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Text="Opens this panel for a moment when you turn the knob on the speaker."
+                                TextWrapping="Wrap" />
+                        </StackPanel>
+                        <ToggleSwitch
+                            x:Name="ShowOnKnobSwitch"
+                            Grid.Column="1"
+                            MinWidth="0"
+                            OnContent=""
+                            OffContent=""
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            AutomationProperties.Name="Auto-open panel"
+                            Toggled="ShowOnKnobSwitch_Toggled" />
+                    </Grid>
+                    <StackPanel x:Name="HideAfterChoice" Spacing="2">
+                        <TextBlock Text="Close after" />
+                        <StackPanel Orientation="Horizontal">
+                            <StackPanel.Resources>
+                                <Style TargetType="RadioButton" BasedOn="{StaticResource DefaultRadioButtonStyle}">
+                                    <Setter Property="MinWidth" Value="72" />
+                                    <Setter Property="GroupName" Value="HideAfter" />
+                                </Style>
+                            </StackPanel.Resources>
+                            <RadioButton x:Name="Hide1" Content="1 s" Tag="1" Checked="HideAfter_Checked" />
+                            <RadioButton x:Name="Hide2" Content="2 s" Tag="2" Checked="HideAfter_Checked" />
+                            <RadioButton x:Name="Hide3" Content="3 s" Tag="3" Checked="HideAfter_Checked" />
+                            <RadioButton x:Name="Hide5" Content="5 s" Tag="5" Checked="HideAfter_Checked" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <TextBlock
+                        Margin="0,6,0,0"
+                        Style="{StaticResource BodyStrongTextBlockStyle}"
+                        Text="Diagnostics" />
+                    <Grid ColumnSpacing="12" RowSpacing="2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Grid.Resources>
+                            <Style x:Key="DiagLabel" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextBlockStyle}">
+                                <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </Style>
+                            <Style x:Key="DiagValue" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextBlockStyle}">
+                                <Setter Property="IsTextSelectionEnabled" Value="True" />
+                                <Setter Property="TextWrapping" Value="Wrap" />
+                            </Style>
+                        </Grid.Resources>
+                        <TextBlock Grid.Row="0" Style="{StaticResource DiagLabel}" Text="Status" />
+                        <TextBlock Grid.Row="0" Grid.Column="1" x:Name="DiagStatus" Style="{StaticResource DiagValue}" />
+                        <TextBlock Grid.Row="1" Style="{StaticResource DiagLabel}" Text="Speaker" />
+                        <TextBlock Grid.Row="1" Grid.Column="1" x:Name="DiagSpeaker" Style="{StaticResource DiagValue}" />
+                        <TextBlock Grid.Row="2" Style="{StaticResource DiagLabel}" Text="Firmware" />
+                        <TextBlock Grid.Row="2" Grid.Column="1" x:Name="DiagFirmware" Style="{StaticResource DiagValue}" />
+                        <TextBlock Grid.Row="3" Style="{StaticResource DiagLabel}" Text="Bluetooth" />
+                        <TextBlock Grid.Row="3" Grid.Column="1" x:Name="DiagAddress" Style="{StaticResource DiagValue}" />
+                        <TextBlock Grid.Row="4" Style="{StaticResource DiagLabel}" Text="Reconnects" />
+                        <TextBlock Grid.Row="4" Grid.Column="1" x:Name="DiagReconnects" Style="{StaticResource DiagValue}" />
+                        <TextBlock Grid.Row="5" Style="{StaticResource DiagLabel}" Text="Last error" />
+                        <TextBlock Grid.Row="5" Grid.Column="1" x:Name="DiagError" Style="{StaticResource DiagValue}" />
+                        <TextBlock Grid.Row="6" Style="{StaticResource DiagLabel}" Text="App" />
+                        <TextBlock Grid.Row="6" Grid.Column="1" x:Name="DiagApp" Style="{StaticResource DiagValue}" />
+                    </Grid>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button x:Name="ReconnectButton" Content="Reconnect" Click="ReconnectButton_Click" />
+                        <Button Content="Open log" Click="OpenLogButton_Click" />
+                    </StackPanel>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
     </Grid>
 </Window>
