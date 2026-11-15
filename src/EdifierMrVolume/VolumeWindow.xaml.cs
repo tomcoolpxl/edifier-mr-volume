@@ -273,8 +273,10 @@ public sealed partial class VolumeWindow : Window
 
     // ── Volume ─────────────────────────────────────────────────────────
 
-    public void Update(SpeakerState state, VolumeLevel? volume, string model, string? detail)
+    public void Update(SpeakerState state, VolumeLevel? volume, string model, string? detail,
+        EdifierProtocol.SoundState? sound = null)
     {
+        UpdateSoundMode(state == SpeakerState.Connected ? sound : null);
         ModelText.Text = model;
         StatusText.Text = state switch
         {
@@ -315,6 +317,36 @@ public sealed partial class VolumeWindow : Window
         }
         VolumeText.Text = v.Current.ToString();
         UpdateMuteButton(v.Current);
+    }
+
+    private bool _updatingMode;
+
+    private void UpdateSoundMode(EdifierProtocol.SoundState? sound)
+    {
+        var visibility = sound is null ? Visibility.Collapsed : Visibility.Visible;
+        if (ModeBar.Visibility != visibility)
+        {
+            ModeBar.Visibility = visibility;
+        }
+        if (sound is null || sound.Mode < 0 || sound.Mode >= ModeBar.Items.Count) return;
+        var item = ModeBar.Items[sound.Mode];
+        if (ReferenceEquals(ModeBar.SelectedItem, item)) return;
+        _updatingMode = true;
+        try
+        {
+            ModeBar.SelectedItem = item;
+        }
+        finally
+        {
+            _updatingMode = false;
+        }
+    }
+
+    private void ModeBar_SelectionChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+    {
+        if (_updatingMode || sender.SelectedItem is not { Tag: string tag } || !int.TryParse(tag, out var mode)) return;
+        if (_speaker.RequestSoundMode(mode))
+            Log.Write($"Sound mode -> {EdifierProtocol.SoundModeNames[mode]}");
     }
 
     private void SetMessage(string? text)

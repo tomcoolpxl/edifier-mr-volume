@@ -87,6 +87,34 @@ public class EdifierProtocolTests
         Assert.Null(EdifierProtocol.ModelForService(new Guid("00001800-0000-1000-8000-00805f9b34fb")));
 
     [Fact]
+    public void Sound_mode_reply_decodes()
+    {
+        var frame = Assert.Single(EdifierProtocol.ParseFrames(Bytes("BB EC D5 00 07 00 02 00 1E 03 00 01 A7")));
+        Assert.True(EdifierProtocol.TryDecodeSoundMode(frame, out var state));
+        Assert.Equal(0, state.Mode);
+        Assert.Equal("Monitor", state.Name);
+        Assert.Equal(Bytes("02 00 1E 03 00 01"), state.Tuning);
+    }
+
+    /// <summary>The exact packet that switched the MR4.5 to Music in the 2026-11-16 test.</summary>
+    [Fact]
+    public void Switching_to_music_echoes_the_tuning_bytes()
+    {
+        var frame = Assert.Single(EdifierProtocol.ParseFrames(Bytes("BB EC D5 00 07 00 02 00 1E 03 00 01 A7")));
+        Assert.True(EdifierProtocol.TryDecodeSoundMode(frame, out var state));
+        Assert.Equal(Bytes("AA 0C C4 00 07 01 02 00 1E 03 00 01 A6"), EdifierProtocol.SetSoundMode(state, 1));
+    }
+
+    /// <summary>A short payload once changed the room tuning; it must never be echoed.</summary>
+    [Fact]
+    public void Short_or_long_sound_mode_replies_are_rejected()
+    {
+        var shortFrame = Assert.Single(EdifierProtocol.ParseFrames(Bytes("BB EC D5 00 06 00 02 1E 03 00 01 A5")));
+        Assert.False(EdifierProtocol.TryDecodeSoundMode(shortFrame, out _));
+        Assert.Throws<ArgumentException>(() => EdifierProtocol.SetSoundMode(new EdifierProtocol.SoundState(0, [2, 0, 0x1E]), 1));
+    }
+
+    [Fact]
     public void Firmware_reply_decodes()
     {
         var frame = Assert.Single(EdifierProtocol.ParseFrames(Bytes("BB EC C6 00 03 01 00 00 71")));

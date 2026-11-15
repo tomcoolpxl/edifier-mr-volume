@@ -60,6 +60,9 @@ public sealed class SpeakerConnection : IAsyncDisposable
     private readonly SemaphoreSlim _kick = new(0);
     private readonly SemaphoreSlim _wake = new(0);
     private readonly HashSet<ulong> _ignored = [];
+    /// <summary>Commands waiting to be written (sound mode switches); sent before the next poll.</summary>
+    private readonly System.Collections.Concurrent.ConcurrentQueue<byte[]> _outbox = new();
+    private EdifierProtocol.SoundState? _sound;
     private CancellationTokenSource? _cts;
     private Task? _loop;
     private int _pendingSet = -1;
@@ -101,6 +104,22 @@ public sealed class SpeakerConnection : IAsyncDisposable
     public string? Detail { get { lock (_gate) return _detail; } }
 
     public string? ModelName { get; private set; }
+
+    /// <summary>Sound mode and room tuning as the speaker last reported them, or null.</summary>
+    public EdifierProtocol.SoundState? SoundMode { get { lock (_gate) return _sound; } }
+
+    /// <summary>
+    /// Switches Monitor / Music / Custom. Only possible once the speaker has reported its tuning,
+    /// because the switch must echo those bytes unchanged.
+    /// </summary>
+    public bool RequestSoundMode(int mode)
+    {
+        var current = SoundMode;
+        if (current is null || current.Mode == mode || State != SpeakerState.Connected) return false;
+        _outbox.Enqueue(EdifierProtocol.SetSoundMode(current, mode));
+        Kick();
+        return true;
+    }
 
     public bool IsRunning { get { lock (_gate) return _cts is not null; } }
 
@@ -373,6 +392,7 @@ public sealed class SpeakerConnection : IAsyncDisposable
     {
         Interlocked.Exchange(ref _lastRxTicks, Environment.TickCount64);
         var nextPoll = 0L;
+        var nextModePoll = 0L;
         var askedForInfo = false;
         while (!ct.IsCancellationRequested)
         {
@@ -411,11 +431,24 @@ public sealed class SpeakerConnection : IAsyncDisposable
                 continue;
             }
 
+            while (_outbox.TryDequeue(out var queued))
+            {
+                await WriteAsync(queued, ct).ConfigureAwait(false);
+                nextModePoll = Environment.TickCount64 + 400; // read the result back soon
+            }
+
             if (!askedForInfo)
             {
                 askedForInfo = true;
                 await WriteAsync(EdifierProtocol.BuildCommand(EdifierProtocol.CmdGetFirmware), ct).ConfigureAwait(false);
                 await WriteAsync(EdifierProtocol.BuildCommand(EdifierProtocol.CmdGetModelName), ct).ConfigureAwait(false);
+            }
+
+            // The sound mode changes rarely (button on the speaker, the phone app): every 5 s.
+            if (Environment.TickCount64 >= nextModePoll)
+            {
+                await WriteAsync(EdifierProtocol.BuildCommand(EdifierProtocol.CmdGetSoundMode), ct).ConfigureAwait(false);
+                nextModePoll = Environment.TickCount64 + 5000;
             }
 
             if (Environment.TickCount64 >= nextPoll)
@@ -455,6 +488,16 @@ public sealed class SpeakerConnection : IAsyncDisposable
                     FromSpeaker: previous is not null && !ownEcho,
                     IsFirstReading: previous is null));
             }
+            else if (EdifierProtocol.TryDecodeSoundMode(frame, out var sound))
+            {
+                bool changed;
+                lock (_gate)
+                {
+                    changed = _sound is null || !_sound.Equals(sound);
+                    _sound = sound;
+                }
+                if (changed) StateChanged?.Invoke(this, EventArgs.Empty);
+            }
             else if (EdifierProtocol.TryDecodeFirmware(frame, out var firmware))
             {
                 lock (_gate) _firmware = firmware;
@@ -485,9 +528,11 @@ public sealed class SpeakerConnection : IAsyncDisposable
     private async Task TearDownAsync()
     {
         Interlocked.Exchange(ref _pendingSet, -1);
+        while (_outbox.TryDequeue(out _)) { } // a mode switch for a link that's gone is stale
         lock (_gate)
         {
             _volume = null;
+            _sound = null;
             _connectedSince = null;
         }
 
