@@ -50,7 +50,7 @@ Speaker:
 - [ ] Input: show and switch (find out which number is which input first). *Owner (2026-11-16): "i
       thought it mixed the signals? check online first". Checked: the MR4.5 manual says all audio
       inputs, Bluetooth included, can be used in parallel, so there is no input to switch; what
-      `0x61` ("1 of 4") means is unknown. Decision pending: drop, or show it as unexplained.*
+      `0x61` ("1 of 4") means is unknown. Owner, 2026-11-16: investigate further (read `0x61` while the owner plugs and unplugs sources and connects Bluetooth).*
 - [x] Volume limit (setting; caps what the app sets, not the knob). *Tested on the speaker: limit 6,
       slider asked for 8, speaker went to 6. Switched back off.*
 - [ ] Power-off: **a right-click menu item and a button in the panel, no confirmation** (owner's
@@ -64,7 +64,9 @@ Speaker:
       not good, and there's already a sound profile, but I want something with proper bass, but I
       don't know how to do that. So 2 or 3 presets for the user to choose from, plus custom."
       Research how to shape bass for a 4.5" monitor first (sources), propose the curves, let the
-      owner choose. **Owner, 2026-11-16: "Check the exact specs of the speakers. I did not change
+      owner choose. Owner, 2026-11-16, on the proposal (Deep bass 62 +3 / 125 −1; Balanced 125 −2 /
+      2k +2; Deep + balanced): **listen first**, one preset at a time on the speaker, then restore
+      the owner's curve. **Owner, 2026-11-16: "Check the exact specs of the speakers. I did not change
       the two dials at the back, and then check what people say in reviews or measurements, and
       then make the profiles. You're just guessing now."** So: official specs (drivers, response,
       crossover, rear High/Low dials and what they do at their default), the sound modes, the
@@ -74,7 +76,7 @@ Speaker:
       off); `0xD1 00 01` set it to 1 minute (read back `00 01`), `0xD2` switched it off again (read
       back `00 00`). Owner asked why 20 minutes: it was an arbitrary example; the test used 1
       minute. Still unknown: whether it is a shutdown timer or auto-standby on silence.
-      Decision pending: whether and how to offer it.*
+      Owner, 2026-11-16: find out with a 1-minute test while music plays.*
 
 Convenience:
 - [x] Mute (click the speaker symbol; click again restores). *Tested: 7 → 0 → 7.*
@@ -117,8 +119,9 @@ guidelines"):
       report findings with sources before changing anything.
 - [ ] Decide whether to install Microsoft's WinApp CLI, which `winui-design` uses for its sample
       search (`winapp find-ui`); the skill works without it.
-- [ ] **Rescan**: never offered. Reconnect already rescans before connecting; tell the owner and let
-      them decide whether a separate Rescan is wanted
+- [x] **Rescan**: never offered. Reconnect already rescans before connecting; tell the owner and let
+      them decide whether a separate Rescan is wanted. *Owner, 2026-11-16: "No, Reconnect is
+      enough".*
 
 Project:
 - [x] Make the repo public, then add a Scoop manifest to tomcoolpxl/scoop-bucket (like cash's)
