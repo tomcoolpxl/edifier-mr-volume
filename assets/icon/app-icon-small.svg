@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Simplified Edifier MR Volume icon for 16-24 px: same shapes, thicker lines,
+       no inner cone ring, so it stays readable when tiny. -->
+  <title>Edifier MR Volume</title>
+  <rect x="42" y="10" width="172" height="236" rx="34" fill="#1F1F22" stroke="#6A6A70" stroke-width="12"/>
+  <circle cx="128" cy="62" r="30" fill="#ECE8E2"/>
+  <circle cx="128" cy="168" r="50" fill="none" stroke="#C8834F" stroke-width="30"/>
+</svg>

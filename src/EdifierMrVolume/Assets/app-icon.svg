@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Edifier MR Volume app icon: an abstract, flat line drawing of an MR4.5 front.
+       Graphite cabinet (the black finish), warm-white tweeter, copper woofer
+       (the MR4.5's copper-coloured cones). Detailed version, for 32 px and up. -->
+  <title>Edifier MR Volume</title>
+  <rect x="43" y="11" width="170" height="234" rx="30" fill="#1F1F22" stroke="#5A5A60" stroke-width="6"/>
+  <!-- tweeter -->
+  <circle cx="128" cy="60" r="26" fill="none" stroke="#ECE8E2" stroke-width="9"/>
+  <circle cx="128" cy="60" r="8" fill="#ECE8E2"/>
+  <!-- woofer: surround, cone and dust cap -->
+  <circle cx="128" cy="164" r="54" fill="none" stroke="#C8834F" stroke-width="12"/>
+  <circle cx="128" cy="164" r="30" fill="none" stroke="#C8834F" stroke-width="6"/>
+  <circle cx="128" cy="164" r="10" fill="#C8834F"/>
+</svg>

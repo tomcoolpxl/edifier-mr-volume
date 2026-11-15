@@ -185,13 +185,28 @@
                         <TextBlock Grid.Row="4" Grid.Column="1" x:Name="DiagReconnects" Style="{StaticResource DiagValue}" />
                         <TextBlock Grid.Row="5" Style="{StaticResource DiagLabel}" Text="Last error" />
                         <TextBlock Grid.Row="5" Grid.Column="1" x:Name="DiagError" Style="{StaticResource DiagValue}" />
-                        <TextBlock Grid.Row="6" Style="{StaticResource DiagLabel}" Text="App" />
-                        <TextBlock Grid.Row="6" Grid.Column="1" x:Name="DiagApp" Style="{StaticResource DiagValue}" />
                     </Grid>
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <Button x:Name="ReconnectButton" Content="Reconnect" Click="ReconnectButton_Click" />
                         <Button Content="Open log" Click="OpenLogButton_Click" />
                     </StackPanel>
+
+                    <!-- About: the only place the app icon appears inside the app. -->
+                    <Border Height="1" Margin="0,4,0,0" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                    <Grid ColumnSpacing="10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Image x:Name="AboutIcon" Width="32" Height="32" AutomationProperties.AccessibilityView="Raw" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Edifier MR Volume" />
+                            <TextBlock
+                                x:Name="AboutVersion"
+                                Style="{StaticResource CaptionTextBlockStyle}"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                    </Grid>
                 </StackPanel>
             </StackPanel>
         </ScrollViewer>

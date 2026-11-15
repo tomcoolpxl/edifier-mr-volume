@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.Graphics;
 using Windows.System;
 
@@ -21,7 +22,7 @@ public sealed partial class VolumeWindow : Window
 {
     private const int WidthDip = 340;
     private const int MainHeightDip = 100;
-    private const int SettingsHeightDip = 404;
+    private const int SettingsHeightDip = 462;
     private const int MarginDip = 12;
 
     private readonly SpeakerConnection _speaker;
@@ -70,6 +71,9 @@ public sealed partial class VolumeWindow : Window
         };
 
         LoadSettingsIntoControls();
+
+        var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "app-icon.svg");
+        if (File.Exists(iconPath)) AboutIcon.Source = new SvgImageSource(new Uri(iconPath));
     }
 
     // ── Showing and hiding ─────────────────────────────────────────────
@@ -325,7 +329,7 @@ public sealed partial class VolumeWindow : Window
         DiagAddress.Text = d.Address ?? "–";
         DiagReconnects.Text = d.Reconnects.ToString();
         DiagError.Text = d.LastError ?? "none";
-        DiagApp.Text = $"Edifier MR Volume {appVersion}";
+        AboutVersion.Text = $"Version {appVersion} · unofficial";
     }
 
     private async void ReconnectButton_Click(object sender, RoutedEventArgs e)

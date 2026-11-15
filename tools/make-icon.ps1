@@ -1,52 +1,68 @@
 <#
 .SYNOPSIS
-    Draws the app icon (a volume knob) and writes src/EdifierMrVolume/Assets/app.ico
-    with PNG-compressed images from 16 to 256 px. Rerun after changing the design.
+    Builds src/EdifierMrVolume/Assets/app.ico (and the SVG the app shows in its About row)
+    from the SVG masters in assets/icon.
+
+.DESCRIPTION
+    The design lives in assets/icon/app-icon.svg (32 px and up) and app-icon-small.svg
+    (16-24 px). Microsoft Edge, which every Windows 10/11 has, renders each master once at
+    256 px; the sizes are scaled from that and packed as PNG images into one .ico.
+    Rerun after changing an SVG.
 #>
 [CmdletBinding()]
 param(
-    [string]$OutFile = (Join-Path (Split-Path $PSScriptRoot -Parent) 'src\EdifierMrVolume\Assets\app.ico'),
     [string]$PreviewFile
 )
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 
-function New-KnobBitmap([int]$size) {
+$repo = Split-Path $PSScriptRoot -Parent
+$iconDir = Join-Path $repo 'assets\icon'
+$assets = Join-Path $repo 'src\EdifierMrVolume\Assets'
+$outIco = Join-Path $assets 'app.ico'
+$edge = @("${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe",
+          "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe") |
+    Where-Object { Test-Path $_ } | Select-Object -First 1
+if (-not $edge) { throw 'Microsoft Edge is needed to render the SVG icon.' }
+
+$work = Join-Path ([IO.Path]::GetTempPath()) "emv-icon-$PID"
+New-Item -ItemType Directory -Force $work | Out-Null
+
+# Renders an SVG at 256x256 with a transparent background.
+function Render-Svg([string]$svg, [string]$png) {
+    $uri = ([Uri](Resolve-Path $svg).Path).AbsoluteUri
+    $html = Join-Path $work 'page.html'
+    "<!doctype html><html><body style='margin:0;background:transparent'><img src='$uri' width='256' height='256' style='display:block'></body></html>" |
+        Set-Content -Path $html -Encoding utf8
+    & $edge --headless=new --disable-gpu --hide-scrollbars --force-device-scale-factor=1 `
+        --default-background-color=00000000 --window-size=256,256 `
+        "--screenshot=$png" ([Uri]$html).AbsoluteUri 2>$null | Out-Null
+    $deadline = (Get-Date).AddSeconds(20)
+    while (-not (Test-Path $png) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 200 }
+    if (-not (Test-Path $png)) { throw "Edge did not render $svg." }
+}
+
+function Scale([System.Drawing.Image]$source, [int]$size) {
     $bmp = New-Object System.Drawing.Bitmap $size, $size, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
     $g = [System.Drawing.Graphics]::FromImage($bmp)
-    $g.SmoothingMode = 'AntiAlias'
+    $g.InterpolationMode = 'HighQualityBicubic'
     $g.PixelOffsetMode = 'HighQuality'
-
-    $rim = [Math]::Max(1.0, $size * 0.07)
-    $inset = $size * 0.04 + $rim / 2
-    $rect = New-Object System.Drawing.RectangleF $inset, $inset, ($size - 2 * $inset), ($size - 2 * $inset)
-
-    $body = New-Object System.Drawing.Drawing2D.LinearGradientBrush $rect, `
-        ([System.Drawing.Color]::FromArgb(255, 70, 70, 74)), ([System.Drawing.Color]::FromArgb(255, 24, 24, 26)), 60.0
-    $g.FillEllipse($body, $rect)
-    $pen = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(255, 120, 120, 126)), $rim
-    $g.DrawEllipse($pen, $rect)
-
-    # Indicator pointing to about 2 o'clock, in a bright green.
-    $center = $size / 2.0
-    $angle = -40.0 * [Math]::PI / 180.0
-    $r1 = $size * 0.10
-    $r2 = $size * 0.36
-    $lineWidth = [Math]::Max(1.6, $size * 0.13)
-    $green = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(255, 34, 197, 94)), $lineWidth
-    $green.StartCap = 'Round'
-    $green.EndCap = 'Round'
-    $g.DrawLine($green,
-        [float]($center + $r1 * [Math]::Cos($angle)), [float]($center + $r1 * [Math]::Sin($angle)),
-        [float]($center + $r2 * [Math]::Cos($angle)), [float]($center + $r2 * [Math]::Sin($angle)))
-
-    $green.Dispose(); $pen.Dispose(); $body.Dispose(); $g.Dispose()
+    $g.SmoothingMode = 'HighQuality'
+    $g.DrawImage($source, 0, 0, $size, $size)
+    $g.Dispose()
     return $bmp
 }
 
+$bigPng = Join-Path $work 'big.png'
+$smallPng = Join-Path $work 'small.png'
+Render-Svg (Join-Path $iconDir 'app-icon.svg') $bigPng
+Render-Svg (Join-Path $iconDir 'app-icon-small.svg') $smallPng
+$big = [System.Drawing.Image]::FromFile($bigPng)
+$small = [System.Drawing.Image]::FromFile($smallPng)
+
 $sizes = 16, 20, 24, 32, 40, 48, 64, 128, 256
 $images = foreach ($s in $sizes) {
-    $bmp = New-KnobBitmap $s
+    $bmp = Scale ($(if ($s -le 24) { $small } else { $big })) $s
     $ms = New-Object System.IO.MemoryStream
     $bmp.Save($ms, [System.Drawing.Imaging.ImageFormat]::Png)
     $bmp.Dispose()
@@ -67,20 +83,25 @@ for ($i = 0; $i -lt $sizes.Count; $i++) {
 }
 foreach ($img in $images) { $w.Write($img) }
 $w.Flush()
-New-Item -ItemType Directory -Force (Split-Path $OutFile) | Out-Null
-[System.IO.File]::WriteAllBytes($OutFile, $out.ToArray())
-Write-Host "Wrote $OutFile ($($out.Length) bytes, sizes $($sizes -join ', '))"
+[IO.File]::WriteAllBytes($outIco, $out.ToArray())
+Copy-Item (Join-Path $iconDir 'app-icon.svg') (Join-Path $assets 'app-icon.svg') -Force
+Write-Host "Wrote $outIco ($($out.Length) bytes) and Assets\app-icon.svg"
 
 if ($PreviewFile) {
-    $sheet = New-Object System.Drawing.Bitmap 520, 280
+    # The icon at its real sizes on dark and light backgrounds, plus 128 px.
+    $sheet = New-Object System.Drawing.Bitmap 560, 330
     $g = [System.Drawing.Graphics]::FromImage($sheet)
     $g.Clear([System.Drawing.Color]::FromArgb(32, 32, 32))
-    $x = 10
-    foreach ($s in 16, 24, 32, 48) {
-        $b = New-KnobBitmap $s; $g.DrawImage($b, $x, 10, $s, $s); $b.Dispose(); $x += $s + 14
+    $g.FillRectangle([System.Drawing.Brushes]::WhiteSmoke, 0, 165, 560, 165)
+    foreach ($row in 0, 1) {
+        $x = 12
+        foreach ($s in 16, 20, 24, 32, 48, 64) {
+            $bmp = Scale ($(if ($s -le 24) { $small } else { $big })) $s
+            $g.DrawImage($bmp, $x, 12 + $row * 165, $s, $s); $bmp.Dispose(); $x += $s + 14
+        }
+        $g.DrawImage($big, 400, 12 + $row * 165, 140, 140)
     }
-    $b = New-KnobBitmap 256; $g.DrawImage($b, 250, 10, 256, 256); $b.Dispose()
-    $g.InterpolationMode = 'NearestNeighbor'
-    $b = New-KnobBitmap 16; $g.DrawImage($b, 10, 80, 128, 128); $b.Dispose()
     $g.Dispose(); $sheet.Save($PreviewFile); $sheet.Dispose()
 }
+$big.Dispose(); $small.Dispose()
+Remove-Item $work -Recurse -Force
