@@ -241,7 +241,7 @@ public partial class App : Application
         _autostartItem.IsChecked = Autostart.IsEnabled;
         if (_window is not null)
         {
-            _window.Update(state, volume, model, _speaker.Detail);
+            _window.Update(state, volume, model, _speaker.Detail, _speaker.SoundMode);
             _window.UpdateDiagnostics(_speaker.GetDiagnostics(), model, AppVersion);
         }
     }
@@ -258,7 +258,7 @@ public partial class App : Application
         if (_window is null)
         {
             _window = new VolumeWindow(_speaker, _settings, ReconnectAsync, ApplySettings);
-            _window.Update(_speaker.State, _speaker.Volume, DisplayModel, _speaker.Detail);
+            _window.Update(_speaker.State, _speaker.Volume, DisplayModel, _speaker.Detail, _speaker.SoundMode);
             _window.UpdateDiagnostics(_speaker.GetDiagnostics(), DisplayModel, AppVersion);
         }
         return _window;

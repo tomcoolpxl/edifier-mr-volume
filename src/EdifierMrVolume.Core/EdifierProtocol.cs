@@ -51,6 +51,42 @@ public static class EdifierProtocol
     public const byte CmdGetFirmware = 0xC6;
     /// <summary>Model name as ASCII; the MR4.5 answers "EDIFIER MR4.5".</summary>
     public const byte CmdGetModelName = 0xC9;
+    /// <summary>Sound mode and room tuning: [mode][index][byte0][lowCut][slope][space][desktop].</summary>
+    public const byte CmdGetSoundMode = 0xD5;
+    /// <summary>Sets the same 7 bytes; the speaker acks 01 and pushes 0xD5.</summary>
+    public const byte CmdSetSoundMode = 0xC4;
+
+    public static readonly IReadOnlyList<string> SoundModeNames = ["Monitor", "Music", "Custom"];
+
+    /// <summary>The sound-mode reply: the mode plus the six room-tuning bytes, kept as reported.</summary>
+    public sealed record SoundState(int Mode, byte[] Tuning)
+    {
+        public string Name => Mode >= 0 && Mode < SoundModeNames.Count ? SoundModeNames[Mode] : $"Mode {Mode}";
+        public bool Equals(SoundState? other) =>
+            other is not null && Mode == other.Mode && Tuning.AsSpan().SequenceEqual(other.Tuning);
+        public override int GetHashCode() => HashCode.Combine(Mode, Tuning.Length > 0 ? Tuning[0] : 0);
+    }
+
+    public static bool TryDecodeSoundMode(Frame frame, out SoundState state)
+    {
+        state = null!;
+        // Exactly 7 bytes: anything else and we must not echo it back.
+        if (!frame.ChecksumOk || frame.Command != CmdGetSoundMode || frame.Payload.Length != 7) return false;
+        state = new SoundState(frame.Payload[0], frame.Payload[1..]);
+        return true;
+    }
+
+    /// <summary>
+    /// Switches the sound mode, echoing the speaker's own six tuning bytes unchanged. Building the
+    /// payload any other way changed the room tuning in a test (see TODO.md), so this refuses
+    /// anything but exactly the reported bytes.
+    /// </summary>
+    public static byte[] SetSoundMode(SoundState current, int mode)
+    {
+        if (current.Tuning.Length != 6) throw new ArgumentException("Need the 6 tuning bytes the speaker reported.", nameof(current));
+        if (mode < 0 || mode >= SoundModeNames.Count) throw new ArgumentOutOfRangeException(nameof(mode));
+        return BuildCommand(CmdSetSoundMode, [(byte)mode, .. current.Tuning]);
+    }
 
     /// <summary>Volume range the MR4.5 reports when it doesn't say otherwise.</summary>
     public const int DefaultMaxVolume = 30;

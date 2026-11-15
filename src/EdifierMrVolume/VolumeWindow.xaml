@@ -32,6 +32,7 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <Grid ColumnSpacing="8">
@@ -124,6 +125,20 @@
                     TextAlignment="Right"
                     VerticalAlignment="Center" />
             </Grid>
+
+            <!-- Sound mode: SelectorBar is WinUI's control for switching between 2-3 modes.
+                 Shown once the speaker has reported its mode. -->
+            <SelectorBar
+                x:Name="ModeBar"
+                Grid.Row="4"
+                Margin="-4,2,8,0"
+                Visibility="Collapsed"
+                AutomationProperties.Name="Sound mode"
+                SelectionChanged="ModeBar_SelectionChanged">
+                <SelectorBarItem Text="Monitor" Tag="0" />
+                <SelectorBarItem Text="Music" Tag="1" />
+                <SelectorBarItem Text="Custom" Tag="2" />
+            </SelectorBar>
         </Grid>
 
         <!-- Settings, diagnostics and About, behind the gear button. -->
