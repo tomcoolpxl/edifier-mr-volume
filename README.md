@@ -48,9 +48,14 @@ Built with WinUI 3 (Windows App SDK 2.6), .NET 10 and [H.NotifyIcon](https://git
 
 Windows 10 2004 or later, x64. No pairing in Windows Bluetooth settings is needed.
 
-**From a release**: download `edifier-mr-volume-vX.Y.Z-win-x64.zip` from
-[Releases](https://github.com/tomcoolpxl/edifier-mr-volume/releases), unpack it anywhere and run
-`EdifierMrVolume.exe`. It is self-contained (.NET and the Windows App SDK runtime included).
+**Installer** (from v1.0.1 on): download `edifier-mr-volume-vX.Y.Z-win-x64-setup.exe` from
+[Releases](https://github.com/tomcoolpxl/edifier-mr-volume/releases) and run it. Per user, no
+admin: it installs to `%LOCALAPPDATA%\Programs\EdifierMrVolume`, adds an **Edifier MR Volume**
+Start menu shortcut, can start the app when you sign in, upgrades an installed copy in place
+(closing it cleanly first) and uninstalls from Windows' **Installed apps**.
+
+**Portable**: download `edifier-mr-volume-vX.Y.Z-win-x64.zip`, unpack it anywhere and run
+`EdifierMrVolume.exe`. Self-contained (.NET and the Windows App SDK runtime included).
 
 **From source** (needs the .NET 10 SDK):
 
@@ -64,7 +69,8 @@ starts it. Rerun it after pulling changes: it closes the running copy cleanly, s
 reconnects within seconds. Then tick **Start with Windows** in the tray menu.
 
 Settings live in `%LOCALAPPDATA%\EdifierMrVolume\settings.json`, the log next to it in `log.txt`.
-To uninstall: untick **Start with Windows**, choose **Exit**, then delete
+To uninstall an installer copy, use Windows' **Installed apps**. For a portable or
+`install.ps1` copy: untick **Start with Windows**, choose **Exit**, then delete
 `%LOCALAPPDATA%\Programs\EdifierMrVolume`, `%LOCALAPPDATA%\EdifierMrVolume` and the Start menu shortcut.
 
 Command-line switches: `--show` opens the panel (launching it again while it runs does the
@@ -91,17 +97,20 @@ src\EdifierMrVolume\bin\x64\Debug\net10.0-windows10.0.26100.0\win-x64\EdifierMrV
 Only one copy runs at a time, so exit the installed one first.
 
 Commits follow Conventional Commits (`feat(scope): …`, `fix(scope): …`) because the release notes
-are built from them. CI builds, tests and smoke-launches the app on every push and pull request.
-A release is a version bump in `Directory.Build.props` plus a `vX.Y.Z` tag; see
-[docs/RELEASING.md](docs/RELEASING.md).
+and [CHANGELOG.md](CHANGELOG.md) are built from them. CI builds, tests and smoke-launches the app,
+and builds, installs and uninstalls the installer, on every push and pull request. A release is
+one click: **Actions › Release › Run workflow** (patch/minor/major); see
+[docs/RELEASING.md](docs/RELEASING.md). `.\tools\package.ps1` builds the release files locally.
 
 | Path | What |
 | --- | --- |
 | `src/EdifierMrVolume.Core` | Protocol (`EdifierProtocol`) and the BLE connection loop (`SpeakerConnection`) |
 | `src/EdifierMrVolume` | WinUI 3 tray app: tray icon, panel, settings, autostart, log |
 | `tests/EdifierMrVolume.Core.Tests` | Protocol tests using bytes captured from real speakers |
-| `tools/install.ps1` | Publish and install for the current user |
-| `tools/make-icon.ps1` | Draws the app icon (`src/EdifierMrVolume/Assets/app.ico`) |
+| `tools/install.ps1` | Publish and install for the current user (development) |
+| `tools/package.ps1` | Release files: zip, installer, checksums |
+| `packaging/inno` | Inno Setup script for the per-user installer |
+| `assets/icon` | App icon masters (SVG); `tools/make-icon.ps1` builds `app.ico` from them |
 | `tools/probe.py` | Python/Bleak probe used to verify the protocol |
 | `.github/workflows` | CI (`ci.yml`) and tag-driven releases (`release.yml`) |
 | `docs/RELEASING.md` | Commit convention and release routine |

@@ -14,11 +14,16 @@ verified; say how in DONE notes or the commit.
       is the firmware version; 1.0.0 fits a model released in August 2026. The ConneX app can confirm.*
 - [ ] **README screenshot** of the settings view with the new About row (the panel closes when it
       loses focus, so it needs a moment when nobody is using the PC).
-- [ ] **Installer**: per-user `setup.exe` (Inno Setup, like cash) attached to each release.
-- [ ] **One-click release**: Actions › Release › Run workflow, pick patch/minor/major; it raises the
+- [x] **Installer**: per-user `setup.exe` (Inno Setup, like cash) attached to each release.
+      *Done: `packaging/inno`, built by `tools/package.ps1`; tested locally (silent install,
+      files, Installed-apps entry, uninstall) and in CI on every push. First release with it: the
+      next one.*
+- [x] **One-click release**: Actions › Release › Run workflow, pick patch/minor/major; it raises the
       version, commits `chore(release): X.Y.Z`, tags, builds and publishes ("go up one").
-- [ ] **Release notes**: add the GitHub issues closed since the previous release, and commit the
-      notes to `CHANGELOG.md`.
+      *Done in `release.yml` + `prepare-release.ps1`; the bump and changelog were dry-run
+      locally. Not run on GitHub yet; that publishes a release.*
+- [x] **Release notes**: add the GitHub issues closed since the previous release, and commit the
+      notes to `CHANGELOG.md`. *Done; CHANGELOG.md starts with v1.0.0.*
 - [ ] **Feature ideas list** for the owner to pick from ("review it and think of other features").
       Includes the speaker functions: show/switch sound mode (Monitor/Music/Custom), power off,
       auto-sleep. Nothing gets built until picked.
