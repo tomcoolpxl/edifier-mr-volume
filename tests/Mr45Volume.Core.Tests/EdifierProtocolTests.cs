@@ -70,8 +70,30 @@ public class EdifierProtocolTests
     [Theory]
     [InlineData("00006303-0000-1000-8000-00805f9b34fb", "MR4.5")]
     [InlineData("0000f300-0000-1000-8000-00805f9b34fb", "MR3")]
+    [InlineData("00003a01-0000-1000-8000-00805f9b34fb", "MR5")]
     public void Advertised_uuid_maps_to_model(string uuid, string model) =>
         Assert.Equal(model, EdifierProtocol.ModelForAdvertisedUuid(new Guid(uuid))?.Name);
+
+    [Theory]
+    [InlineData("48096303-1a48-11e9-ab14-d663bd873d93", "MR4.5")]
+    [InlineData("4809f301-1a48-11e9-ab14-d663bd873d93", "MR3")]
+    [InlineData("48093a01-1a48-11e9-ab14-d663bd873d93", "MR5")]
+    [InlineData("48097e03-1a48-11e9-ab14-d663bd873d93", "MR5 (8625)")]
+    public void Control_service_maps_to_model(string uuid, string model) =>
+        Assert.Equal(model, EdifierProtocol.ModelForService(new Guid(uuid))?.Name);
+
+    [Fact]
+    public void Generic_services_are_not_a_model() =>
+        Assert.Null(EdifierProtocol.ModelForService(new Guid("00001800-0000-1000-8000-00805f9b34fb")));
+
+    /// <summary>MR5 capture published by Edifier-IR-remote (PROTOCOL.md): same layout as the MR4.5.</summary>
+    [Fact]
+    public void Mr5_volume_capture_decodes()
+    {
+        var frame = Assert.Single(EdifierProtocol.ParseFrames(Bytes("BB EC 66 00 02 1E 08 35")));
+        Assert.True(EdifierProtocol.TryDecodeVolume(frame, out var level));
+        Assert.Equal(new VolumeLevel(8, 30), level);
+    }
 
     [Fact]
     public void Mr3_uses_its_own_control_service() =>

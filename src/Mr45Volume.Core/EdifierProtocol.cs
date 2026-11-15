@@ -32,7 +32,15 @@ public static class EdifierProtocol
         // MR3: same frames and [max, current] volume reply, own service (verified on an MR3 by
         // omarchy-edifier-mr3 and EdifierControl; not tested with this app).
         new("MR3", new("0000f300-0000-1000-8000-00805f9b34fb"), new("4809f301-1a48-11e9-ab14-d663bd873d93")),
+        // MR5: byte-identical volume frames per MR5 captures in Edifier-IR-remote and
+        // omarchy-edifier-mr5; not tested with this app.
+        new("MR5", new("00003a01-0000-1000-8000-00805f9b34fb"), new("48093a01-1a48-11e9-ab14-d663bd873d93")),
+        // Later MR5 revision with the 8625 DSP (UUIDs from EdifierControl; not tested here).
+        new("MR5 (8625)", new("00007e03-0000-1000-8000-00805f9b34fb"), new("48097e03-1a48-11e9-ab14-d663bd873d93")),
     ];
+
+    public static SpeakerModel? ModelForService(Guid serviceUuid) =>
+        Models.FirstOrDefault(m => m.ServiceUuid == serviceUuid);
 
     /// <summary>Client identifier byte. The speaker answers any value; it replies with 0xEC.</summary>
     public const byte AppCode = 0x0C;

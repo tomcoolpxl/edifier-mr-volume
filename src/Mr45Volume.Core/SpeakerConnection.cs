@@ -223,18 +223,22 @@ public sealed class SpeakerConnection : IAsyncDisposable
         _session = await GattSession.FromDeviceIdAsync(_device.BluetoothDeviceId).AsTask(ct).ConfigureAwait(false);
         _session.MaintainConnection = true;
 
-        foreach (var model in EdifierProtocol.Models)
+        // One lookup, then pick the first service that belongs to a known model.
+        var services = await _device.GetGattServicesAsync(BluetoothCacheMode.Uncached).AsTask(ct).ConfigureAwait(false);
+        if (services.Status == GattCommunicationStatus.Unreachable)
+            throw new InvalidOperationException("The speaker is out of reach, or another device holds its control link.");
+        if (services.Status != GattCommunicationStatus.Success)
+            throw new InvalidOperationException($"Could not read the speaker's services ({services.Status}).");
+        foreach (var service in services.Services)
         {
-            var result = await _device.GetGattServicesForUuidAsync(model.ServiceUuid, BluetoothCacheMode.Uncached)
-                .AsTask(ct).ConfigureAwait(false);
-            if (result.Status == GattCommunicationStatus.Unreachable)
-                throw new InvalidOperationException("The speaker is out of reach, or another device holds its control link.");
-            if (result.Status == GattCommunicationStatus.Success && result.Services.Count > 0)
+            if (_service is null && EdifierProtocol.ModelForService(service.Uuid) is { } model)
             {
-                _service = result.Services[0];
-                foreach (var extra in result.Services.Skip(1)) extra.Dispose();
+                _service = service;
                 ModelName = model.Name;
-                break;
+            }
+            else
+            {
+                service.Dispose();
             }
         }
         if (_service is null) throw new UnsupportedSpeakerException("This Edifier device has no supported MR control service.");

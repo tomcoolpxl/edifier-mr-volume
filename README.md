@@ -1,6 +1,6 @@
 # mr45-volume
 
-A Windows tray app that shows and sets the **hardware volume of Edifier MR4.5 and MR3 studio
+A Windows tray app that shows and sets the **hardware volume of Edifier MR4.5, MR3 and MR5 studio
 monitors** and follows the physical volume knob live. It talks to the speaker's Bluetooth LE
 control interface (the one the EDIFIER ConneX phone app uses), so it doesn't depend on the
 Windows volume slider. Control runs over its own Bluetooth LE link, separate from the audio
@@ -20,7 +20,8 @@ Click it for the flyout:
 | --- | --- |
 | **MR4.5** | Tested with this app: reading, setting and following the knob. |
 | **MR3** | Supported. Same protocol and volume reply as the MR4.5, with its own control service, verified on an MR3 by [omarchy-edifier-mr3](https://github.com/Saikomantisu/omarchy-edifier-mr3) and [EdifierControl](https://github.com/D4n13l3k00/EdifierControl). Not yet tested with this app; reports welcome. |
-| MR4.5 (8625 DSP revision) | Supported using EdifierControl's IDs; not tested. |
+| **MR5** | Supported. MR5 captures in [Edifier-IR-remote](https://github.com/68776877/Edifier-IR-remote) show volume frames byte-identical to the MR4.5's; only the control service differs. Not yet tested with this app; reports welcome. |
+| MR4.5 / MR5 (8625 DSP revisions) | Supported using EdifierControl's IDs; not tested. |
 
 The app finds the speaker by its Bluetooth LE advertisement and then picks the model from the
 control service it exposes.
@@ -97,7 +98,7 @@ The log lives in `%LOCALAPPDATA%\Mr45Volume\log.txt`.
 | --- | --- |
 | Advertised name | `EDIFIER BLE`, manufacturer id `0x07E0` |
 | Advertised search UUID | `00006303-0000-1000-8000-00805f9b34fb` |
-| Control service | `48096303-1a48-11e9-ab14-d663bd873d93` (MR3: `4809f301-…`, found by name `EDIFIER BLE` + manufacturer id) |
+| Control service | `48096303-1a48-11e9-ab14-d663bd873d93` (MR3: `4809f301-…`, MR5: `48093a01-…`) |
 | Notify characteristic | `48090001-1a48-11e9-ab14-d663bd873d93` |
 | Write characteristic | `48090002-1a48-11e9-ab14-d663bd873d93` (write / write-without-response) |
 | Get volume (cmd `0x66`) | send `AA 0C 66 00 00 1C` |
@@ -128,7 +129,7 @@ The protocol details come from these MIT-licensed reverse-engineering projects:
 - [D4n13l3k00/EdifierControl](https://github.com/D4n13l3k00/EdifierControl): MR4.5 and MR3 UUIDs, the two-byte volume reply
 - [Saikomantisu/omarchy-edifier-mr3](https://github.com/Saikomantisu/omarchy-edifier-mr3): MR3 service and discovery, knob push notifications
 - [Devis99/omarchy-edifier-mr5](https://github.com/Devis99/omarchy-edifier-mr5): packet framing and command set
-- [68776877/Edifier-IR-remote](https://github.com/68776877/Edifier-IR-remote): one client at a time, 0–30 range
+- [68776877/Edifier-IR-remote](https://github.com/68776877/Edifier-IR-remote): MR5 packet captures, one client at a time, 0–30 range
 
 Not affiliated with or endorsed by Edifier.
 
