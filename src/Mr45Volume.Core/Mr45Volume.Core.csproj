@@ -1,0 +1,8 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>$(WindowsTfm)</TargetFramework>
+    <RootNamespace>Mr45Volume.Core</RootNamespace>
+  </PropertyGroup>
+
+</Project>

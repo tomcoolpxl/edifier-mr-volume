@@ -1,0 +1,11 @@
+<Project>
+  <PropertyGroup>
+    <!-- Windows 11 SDK projections (Bluetooth LE APIs); runs on Windows 10 2004 and later. -->
+    <WindowsTfm>net10.0-windows10.0.26100.0</WindowsTfm>
+    <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+</Project>

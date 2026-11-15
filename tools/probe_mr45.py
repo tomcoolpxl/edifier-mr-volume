@@ -4,9 +4,11 @@ What it does:
   1. Scans for Edifier BLE control advertisements (manufacturer id 0x07E0,
      name "EDIFIER BLE", or one of the known per-model search UUIDs).
   2. Connects to the chosen device and lists its GATT services.
-  3. Sends ONLY the "get volume" query (command 0x66) and prints the reply.
+  3. Sends the "get volume" query (command 0x66) and prints the reply.
 
-It never sends set-volume, EQ, input, LED, shutdown or reset commands.
+By default it is read-only. Only --set-test writes: it lowers the volume one
+step and restores it (command 0x67). It never sends EQ, input, LED, shutdown
+or reset commands.
 
 Protocol facts are taken from two MIT-licensed reverse-engineering projects:
   - github.com/D4n13l3k00/EdifierControl  (src/protocol/protocol.hpp)
@@ -46,6 +48,7 @@ SEARCH_TO_MODEL = {s.lower(): m for m, (s, _) in PROFILES.items()}
 SERVICE_TO_MODEL = {svc.lower(): m for m, (_, svc) in PROFILES.items()}
 
 CMD_GET_VOLUME = 0x66
+CMD_SET_VOLUME = 0x67  # only used by --set-test
 # Different clients use different "app code" bytes (EdifierControl 0x0C,
 # omarchy-edifier-mr5 0x06). Try both; the speaker should echo the command.
 APP_CODES = (0x0C, 0x06)
@@ -101,7 +104,7 @@ async def scan(timeout: float) -> list[tuple[BLEDevice, AdvertisementData]]:
     return hits
 
 
-async def probe(address: str, wait: float, watch: float = 0.0, poll: float = 0.5) -> int:
+async def probe(address: str, wait: float, watch: float = 0.0, poll: float = 0.5, set_test: bool = False) -> int:
     print(f"\nConnecting to {address} ...")
     async with BleakClient(address, timeout=20.0) as client:
         print("Connected. GATT services:")
@@ -158,6 +161,26 @@ async def probe(address: str, wait: float, watch: float = 0.0, poll: float = 0.5
         if volume is not None:
             print(f"\n>>> Speaker hardware volume: {volume[1]} / {volume[0]}")
 
+        if volume is not None and set_test:
+            # Step one notch down (or up at 0), read back, then restore the original level.
+            original = volume[1]
+            target = original - 1 if original > 0 else 1
+            for step_to in (target, original):
+                pkt = build_v2(working_code, CMD_SET_VOLUME, bytes([step_to]))
+                print(f"\nSet-volume {step_to}: {pkt.hex(' ')}")
+                replies.clear()
+                await client.write_gatt_char(write_ch, pkt, response=use_response)
+                await asyncio.sleep(0.5)
+                for r in replies:
+                    print(f"  reply: {r.hex(' ')}  parsed={parse_v2(r)}")
+                replies.clear()
+                await client.write_gatt_char(write_ch, build_v2(working_code, CMD_GET_VOLUME), response=use_response)
+                await asyncio.sleep(0.5)
+                for r in replies:
+                    v = decode_volume(parse_v2(r))
+                    print(f"  read back: {r.hex(' ')}" + (f"  -> volume {v[1]} / {v[0]}" if v else ""))
+                replies.clear()
+
         if volume is not None and watch > 0:
             print(f"\nWatching for {watch:.0f}s - turn the volume knob now. Polling every {poll:.1f}s.")
             last = volume[1]
@@ -201,10 +224,12 @@ async def main() -> int:
     ap.add_argument("--wait", type=float, default=3.0, help="seconds to wait for each reply")
     ap.add_argument("--watch", type=float, default=0.0, help="keep polling volume for N seconds (turn the knob)")
     ap.add_argument("--poll", type=float, default=0.5, help="poll interval in seconds for --watch")
+    ap.add_argument("--set-test", action="store_true",
+                    help="WRITES: lower the volume one step, then restore it (tests command 0x67)")
     args = ap.parse_args()
 
     if args.address:
-        return await probe(args.address, args.wait, args.watch, args.poll)
+        return await probe(args.address, args.wait, args.watch, args.poll, args.set_test)
 
     hits = await scan(args.scan_time)
     if args.scan_only:
@@ -214,7 +239,7 @@ async def main() -> int:
         return 1
     # Prefer a device whose advert names an MR4.5 profile, then strongest signal.
     hits.sort(key=lambda h: ("MR4.5" not in (model_from_adv(h[1]) or ""), -(h[1].rssi or -999)))
-    return await probe(hits[0][0].address, args.wait, args.watch, args.poll)
+    return await probe(hits[0][0].address, args.wait, args.watch, args.poll, args.set_test)
 
 
 if __name__ == "__main__":
