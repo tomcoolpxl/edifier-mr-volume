@@ -39,6 +39,9 @@ internal sealed class AppSettings
     /// <summary>The one-time hint about Windows hiding new notification-area icons was shown.</summary>
     public bool FirstRunDone { get; set; }
 
+    /// <summary>Switch the speakers off when Windows goes to sleep. Off by default.</summary>
+    public bool PowerOffOnSleep { get; set; }
+
     /// <summary>The limit to pass to the connection, or null when off. Not saved.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public int? EffectiveVolumeLimit => VolumeLimitEnabled ? VolumeLimit : null;

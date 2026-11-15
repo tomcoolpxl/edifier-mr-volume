@@ -439,6 +439,8 @@ public sealed partial class VolumeWindow : Window
             StartSwitch.IsOn = _settings.StartVolumeEnabled;
             StartBox.Value = _settings.StartVolume;
             SetStartEnabled(_settings.StartVolumeEnabled);
+
+            SleepOffSwitch.IsOn = _settings.PowerOffOnSleep;
         }
         finally
         {
@@ -508,6 +510,13 @@ public sealed partial class VolumeWindow : Window
         if (_loadingSettings) return;
         _settings.StartVolumeEnabled = StartSwitch.IsOn;
         SaveSettings($"start volume {(_settings.StartVolumeEnabled ? $"on, {_settings.StartVolume}" : "off")}");
+    }
+
+    private void SleepOffSwitch_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_loadingSettings) return;
+        _settings.PowerOffOnSleep = SleepOffSwitch.IsOn;
+        SaveSettings($"switch off when the PC sleeps = {_settings.PowerOffOnSleep}");
     }
 
     private void StartBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
