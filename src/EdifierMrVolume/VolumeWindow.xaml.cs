@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using EdifierMrVolume.Core;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
@@ -14,34 +15,41 @@ using Windows.System;
 namespace EdifierMrVolume;
 
 /// <summary>
-/// Small flyout above the taskbar: status, slider and the current level, with a settings and
-/// diagnostics view behind the gear button. Opened by a click it stays until it loses focus;
-/// popped up by a knob turn ("peek") it doesn't take focus and hides after a few seconds.
+/// Small panel next to the taskbar: status, mute, slider and the current level, with a settings,
+/// diagnostics and About view behind the gear button. Opened by a click it stays until it loses
+/// focus; opened by a knob turn ("peek") it doesn't take focus and closes after a few seconds.
+/// It sizes itself to its content, so larger Windows text doesn't clip.
 /// </summary>
 public sealed partial class VolumeWindow : Window
 {
-    private const int WidthDip = 340;
-    private const int MainHeightDip = 100;
-    private const int SettingsHeightDip = 462;
+    private const int MainWidthDip = 340;
+    private const int SettingsWidthDip = 400;
     private const int MarginDip = 12;
+    private const string RepoUrl = "https://github.com/tomcoolpxl/edifier-mr-volume";
+    private const string MuteGlyph = "";
+    private const string MutedGlyph = "";
 
     private readonly SpeakerConnection _speaker;
     private readonly AppSettings _settings;
     private readonly Func<Task> _reconnect;
+    private readonly Action _settingsChanged;
     private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _peekTimer;
     private bool _updatingFromSpeaker;
     private bool _loadingSettings;
     private bool _settingsOpen;
     private bool _peeking;
     private bool _exiting;
+    private bool _firstRunShown;
+    private int? _levelBeforeMute;
     private long _userEditUntil;
     private long _hiddenAt;
 
-    internal VolumeWindow(SpeakerConnection speaker, AppSettings settings, Func<Task> reconnect)
+    internal VolumeWindow(SpeakerConnection speaker, AppSettings settings, Func<Task> reconnect, Action settingsChanged)
     {
         _speaker = speaker;
         _settings = settings;
         _reconnect = reconnect;
+        _settingsChanged = settingsChanged;
         InitializeComponent();
 
         SystemBackdrop = new DesktopAcrylicBackdrop();
@@ -73,10 +81,16 @@ public sealed partial class VolumeWindow : Window
         LoadSettingsIntoControls();
 
         var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "app-icon.svg");
-        if (File.Exists(iconPath)) AboutIcon.Source = new SvgImageSource(new Uri(iconPath));
+        if (File.Exists(iconPath))
+            AboutExpander.HeaderIcon = new ImageIcon { Source = new SvgImageSource(new Uri(iconPath)) };
+
+        // Expanders opening/closing and messages appearing change the content's height:
+        // resize the panel to match.
+        MainView.SizeChanged += (_, _) => { if (!_settingsOpen && AppWindow.IsVisible) Place(); };
+        SettingsContent.SizeChanged += (_, _) => { if (_settingsOpen && AppWindow.IsVisible) Place(); };
     }
 
-    // ── Showing and hiding ─────────────────────────────────────────────
+    // ── Showing, hiding and placing ────────────────────────────────────
 
     public void Toggle()
     {
@@ -86,7 +100,7 @@ public sealed partial class VolumeWindow : Window
             if (_peeking) ShowFlyout();
             else HideFlyout();
         }
-        // A click on the tray icon first deactivates (and hides) the open flyout; don't reopen it.
+        // A click on the icon first deactivates (and hides) the open panel; don't reopen it.
         else if (Environment.TickCount64 - _hiddenAt > 300)
         {
             ShowFlyout();
@@ -96,14 +110,16 @@ public sealed partial class VolumeWindow : Window
     public void ShowFlyout()
     {
         StopPeeking();
-        Place(_settingsOpen ? SettingsHeightDip : MainHeightDip);
+        Place();
         AppWindow.Show();
         Activate();
         if (!_settingsOpen) VolumeSlider.Focus(FocusState.Programmatic);
+        // Measure again once the content is laid out for real.
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, Place);
     }
 
     /// <summary>
-    /// Shows the flyout without taking focus and hides it <paramref name="seconds"/> after the
+    /// Shows the panel without taking focus and hides it <paramref name="seconds"/> after the
     /// last call. Does nothing while it is open by click, or while a full-screen app runs.
     /// </summary>
     public void Peek(int seconds)
@@ -112,8 +128,8 @@ public sealed partial class VolumeWindow : Window
         if (!AppWindow.IsVisible)
         {
             if (NativeMethods.IsFullScreenAppRunning()) return;
-            ShowMainView(resize: false);
-            Place(MainHeightDip);
+            ShowMainView();
+            Place();
             AppWindow.Show(activateWindow: false);
             _peeking = true;
         }
@@ -127,7 +143,8 @@ public sealed partial class VolumeWindow : Window
         StopPeeking();
         AppWindow.Hide();
         _hiddenAt = Environment.TickCount64;
-        ShowMainView(resize: false); // next time it opens on the volume
+        if (_firstRunShown) MarkFirstRunDone();
+        ShowMainView(); // next time it opens on the volume
     }
 
     public void CloseForExit()
@@ -137,46 +154,97 @@ public sealed partial class VolumeWindow : Window
         Close();
     }
 
+    /// <summary>The one-time hint that Windows 11 may hide the notification-area icon.</summary>
+    public void ShowFirstRunHint()
+    {
+        _firstRunShown = true;
+        FirstRunBar.IsOpen = true;
+    }
+
+    private void FirstRunBar_Closed(InfoBar sender, InfoBarClosedEventArgs args)
+    {
+        MarkFirstRunDone();
+        if (AppWindow.IsVisible) Place();
+    }
+
+    private void MarkFirstRunDone()
+    {
+        _firstRunShown = false;
+        FirstRunBar.IsOpen = false;
+        if (_settings.FirstRunDone) return;
+        _settings.FirstRunDone = true;
+        _settings.Save();
+    }
+
     private void StopPeeking()
     {
         _peeking = false;
         _peekTimer.Stop();
     }
 
-    /// <summary>Bottom-right of the work area on the monitor under the mouse.</summary>
-    private void Place(int heightDip)
+    /// <summary>
+    /// Sizes the panel to its content and puts it in the corner next to the taskbar (bottom, top,
+    /// left or right) on the monitor under the mouse.
+    /// </summary>
+    private void Place()
     {
+        if (_exiting) return;
         NativeMethods.GetCursorPos(out var cursor);
         var display = DisplayArea.GetFromPoint(new PointInt32(cursor.X, cursor.Y), DisplayAreaFallback.Primary);
         var scale = NativeMethods.ScaleForPoint(cursor);
         var work = display.WorkArea;
-        var width = (int)Math.Round(WidthDip * scale);
-        var height = (int)Math.Round(heightDip * scale);
+        var outer = display.OuterBounds;
         var margin = (int)Math.Round(MarginDip * scale);
-        AppWindow.MoveAndResize(new RectInt32(
-            work.X + work.Width - width - margin,
-            work.Y + work.Height - height - margin,
-            width,
-            height));
+
+        var frameWidth = Math.Max(0, AppWindow.Size.Width - AppWindow.ClientSize.Width);
+        var frameHeight = Math.Max(0, AppWindow.Size.Height - AppWindow.ClientSize.Height);
+        var width = (int)Math.Round(WidthDip * scale) + frameWidth;
+        if (AppWindow.IsVisible && Math.Abs(AppWindow.Size.Width - width) <= 1
+            && Math.Abs(AppWindow.Size.Height - Math.Min((int)Math.Round(ContentHeightDip() * scale) + frameHeight, work.Height - 2 * margin)) <= 1
+            && AppWindow.Position.X == (work.X > outer.X ? work.X + margin : work.X + work.Width - width - margin))
+        {
+            return; // already right; avoids resize loops from SizeChanged
+        }
+        var height = Math.Min((int)Math.Round(ContentHeightDip() * scale) + frameHeight, work.Height - 2 * margin);
+
+        var taskbarOnTop = work.Y > outer.Y;
+        var taskbarOnLeft = work.X > outer.X;
+        var x = taskbarOnLeft ? work.X + margin : work.X + work.Width - width - margin;
+        var y = taskbarOnTop ? work.Y + margin : work.Y + work.Height - height - margin;
+        AppWindow.MoveAndResize(new RectInt32(x, y, width, height));
     }
 
-    /// <summary>Changes the height in place, keeping the bottom edge where it is.</summary>
-    private void Resize(int heightDip)
+    /// <summary>The settings view is a little wider, for the settings cards.</summary>
+    private int WidthDip => _settingsOpen ? SettingsWidthDip : MainWidthDip;
+
+    /// <summary>Height the visible view wants at the panel's width, in DIP (text scaling included).</summary>
+    private double ContentHeightDip()
     {
-        var scale = NativeMethods.ScaleForWindow(WinRT.Interop.WindowNative.GetWindowHandle(this));
-        var position = AppWindow.Position;
-        var size = AppWindow.Size;
-        var height = (int)Math.Round(heightDip * scale);
-        AppWindow.MoveAndResize(new RectInt32(position.X, position.Y + size.Height - height, size.Width, height));
+        var fallback = _settingsOpen ? 640 : 100;
+        FrameworkElement content = _settingsOpen ? SettingsContent : MainView;
+        // Measuring before the window has been shown once throws (no live visual tree yet);
+        // ShowFlyout measures again right after showing it.
+        if (content.XamlRoot is null) return fallback;
+        try
+        {
+            content.Measure(new Windows.Foundation.Size(WidthDip, double.PositiveInfinity));
+            var height = content.DesiredSize.Height;
+            return height >= 40 ? Math.Ceiling(height) + 4 : fallback;
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"Measure failed, using the default height: {ex.Message}");
+            return fallback;
+        }
     }
 
-    private void ShowMainView(bool resize)
+    private void ShowMainView()
     {
         if (!_settingsOpen) return;
         _settingsOpen = false;
         SettingsView.Visibility = Visibility.Collapsed;
         MainView.Visibility = Visibility.Visible;
-        if (resize) Resize(MainHeightDip);
+        if (AppWindow.IsVisible) Place();
     }
 
     private void ShowSettingsView()
@@ -185,7 +253,9 @@ public sealed partial class VolumeWindow : Window
         _settingsOpen = true;
         MainView.Visibility = Visibility.Collapsed;
         SettingsView.Visibility = Visibility.Visible;
-        Resize(SettingsHeightDip);
+        Place();
+        // Measure again once the newly shown view is laid out for real.
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, Place);
     }
 
     private void OnActivated(object sender, WindowActivatedEventArgs e)
@@ -196,7 +266,7 @@ public sealed partial class VolumeWindow : Window
         }
         else
         {
-            // Clicked into a peeking flyout: from now on it behaves like one opened by click.
+            // Clicked into a peeking panel: from now on it behaves like one opened by click.
             StopPeeking();
         }
     }
@@ -210,14 +280,21 @@ public sealed partial class VolumeWindow : Window
         {
             SpeakerState.Connected => "",
             SpeakerState.Connecting => "Connecting…",
-            SpeakerState.Searching when detail is not null => "Retrying…",
             SpeakerState.Searching => "Looking for speaker…",
             _ => "Disconnected",
         };
-        ToolTipService.SetToolTip(StatusText, detail);
+        SetMessage(state switch
+        {
+            // The reason it isn't connected: the last error, or what to check after a while.
+            SpeakerState.Searching => detail,
+            SpeakerState.Stopped =>
+                "Released, so another device such as the ConneX app can connect. Right-click the number and tick Connected to speaker to reconnect.",
+            _ => null,
+        });
 
         var usable = state == SpeakerState.Connected && volume is not null;
         VolumeSlider.IsEnabled = usable;
+        MuteButton.IsEnabled = usable;
         if (volume is not { } v)
         {
             VolumeText.Text = "–";
@@ -237,15 +314,57 @@ public sealed partial class VolumeWindow : Window
             _updatingFromSpeaker = false;
         }
         VolumeText.Text = v.Current.ToString();
+        UpdateMuteButton(v.Current);
+    }
+
+    private void SetMessage(string? text)
+    {
+        var visibility = string.IsNullOrEmpty(text) ? Visibility.Collapsed : Visibility.Visible;
+        if (MessageText.Text == (text ?? "") && MessageText.Visibility == visibility) return;
+        MessageText.Text = text ?? "";
+        MessageText.Visibility = visibility;
+        if (AppWindow.IsVisible) Place();
     }
 
     private void VolumeSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
     {
         var level = (int)Math.Round(e.NewValue);
+        if (!_updatingFromSpeaker && VolumeSlider.IsEnabled
+            && _settings.EffectiveVolumeLimit is { } limit && level > limit)
+        {
+            VolumeSlider.Value = limit; // comes back here with the limit
+            return;
+        }
         VolumeText.Text = level.ToString();
+        UpdateMuteButton(level);
         if (_updatingFromSpeaker || !VolumeSlider.IsEnabled) return;
         _userEditUntil = Environment.TickCount64 + 1000;
         _speaker.RequestVolume(level);
+    }
+
+    private void MuteButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!VolumeSlider.IsEnabled) return;
+        var current = (int)Math.Round(VolumeSlider.Value);
+        if (current > 0)
+        {
+            _levelBeforeMute = current;
+            VolumeSlider.Value = 0;
+        }
+        else
+        {
+            VolumeSlider.Value = _levelBeforeMute ?? 10;
+            _levelBeforeMute = null;
+        }
+    }
+
+    private void UpdateMuteButton(int level)
+    {
+        var muted = level == 0;
+        MuteIcon.Glyph = muted ? MutedGlyph : MuteGlyph;
+        var label = muted ? "Unmute" : "Mute";
+        AutomationProperties.SetName(MuteButton, label);
+        ToolTipService.SetToolTip(MuteButton, label);
     }
 
     private void MainView_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
@@ -260,16 +379,16 @@ public sealed partial class VolumeWindow : Window
     private void Root_KeyDown(object sender, KeyRoutedEventArgs e)
     {
         if (e.Key != VirtualKey.Escape) return;
-        if (_settingsOpen) ShowMainView(resize: true);
+        if (_settingsOpen) ShowMainView();
         else HideFlyout();
         e.Handled = true;
     }
 
-    // ── Settings and diagnostics ───────────────────────────────────────
+    // ── Settings ───────────────────────────────────────────────────────
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e) => ShowSettingsView();
 
-    private void BackButton_Click(object sender, RoutedEventArgs e) => ShowMainView(resize: true);
+    private void BackButton_Click(object sender, RoutedEventArgs e) => ShowMainView();
 
     private void LoadSettingsIntoControls()
     {
@@ -280,6 +399,14 @@ public sealed partial class VolumeWindow : Window
             var selected = _settings.HideAfterSeconds switch { 2 => Hide2, 3 => Hide3, 5 => Hide5, _ => Hide1 };
             selected.IsChecked = true;
             SetHideAfterEnabled(_settings.ShowOnKnobTurn);
+
+            LimitSwitch.IsOn = _settings.VolumeLimitEnabled;
+            LimitBox.Value = _settings.VolumeLimit;
+            SetLimitEnabled(_settings.VolumeLimitEnabled);
+
+            StartSwitch.IsOn = _settings.StartVolumeEnabled;
+            StartBox.Value = _settings.StartVolume;
+            SetStartEnabled(_settings.StartVolumeEnabled);
         }
         finally
         {
@@ -287,28 +414,78 @@ public sealed partial class VolumeWindow : Window
         }
     }
 
+    private void SaveSettings(string what)
+    {
+        _settings.Save();
+        _settingsChanged();
+        Log.Write($"Setting: {what}");
+    }
+
     private void ShowOnKnobSwitch_Toggled(object sender, RoutedEventArgs e)
     {
         SetHideAfterEnabled(ShowOnKnobSwitch.IsOn);
         if (_loadingSettings) return;
         _settings.ShowOnKnobTurn = ShowOnKnobSwitch.IsOn;
-        _settings.Save();
-        Log.Write($"Setting: auto-open panel = {_settings.ShowOnKnobTurn}");
+        SaveSettings($"auto-open panel = {_settings.ShowOnKnobTurn}");
     }
 
+    // Disabled cards say why, as Microsoft's settings guidelines ask.
     private void SetHideAfterEnabled(bool enabled)
     {
-        foreach (var radio in new[] { Hide1, Hide2, Hide3, Hide5 }) radio.IsEnabled = enabled;
-        HideAfterChoice.Opacity = enabled ? 1.0 : 0.5;
+        HideAfterCard.IsEnabled = enabled;
+        HideAfterCard.Description = enabled ? null! : "Switch on Auto-open panel to choose.";
+    }
+
+    private void SetLimitEnabled(bool enabled)
+    {
+        LimitCard.IsEnabled = enabled;
+        LimitCard.Description = enabled ? null! : "Switch on Volume limit to choose.";
+    }
+
+    private void SetStartEnabled(bool enabled)
+    {
+        StartCard.IsEnabled = enabled;
+        StartCard.Description = enabled ? null! : "Switch on Start volume to choose.";
     }
 
     private void HideAfter_Checked(object sender, RoutedEventArgs e)
     {
         if (_loadingSettings || sender is not RadioButton { Tag: string tag } || !int.TryParse(tag, out var seconds)) return;
         _settings.HideAfterSeconds = seconds;
-        _settings.Save();
-        Log.Write($"Setting: auto-opened panel closes after {seconds} s");
+        SaveSettings($"auto-opened panel closes after {seconds} s");
     }
+
+    private void LimitSwitch_Toggled(object sender, RoutedEventArgs e)
+    {
+        SetLimitEnabled(LimitSwitch.IsOn);
+        if (_loadingSettings) return;
+        _settings.VolumeLimitEnabled = LimitSwitch.IsOn;
+        SaveSettings($"volume limit {(_settings.VolumeLimitEnabled ? $"on, {_settings.VolumeLimit}" : "off")}");
+    }
+
+    private void LimitBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
+    {
+        if (_loadingSettings || double.IsNaN(args.NewValue)) return;
+        _settings.VolumeLimit = (int)Math.Clamp(Math.Round(args.NewValue), 1, 30);
+        SaveSettings($"volume limit {_settings.VolumeLimit}");
+    }
+
+    private void StartSwitch_Toggled(object sender, RoutedEventArgs e)
+    {
+        SetStartEnabled(StartSwitch.IsOn);
+        if (_loadingSettings) return;
+        _settings.StartVolumeEnabled = StartSwitch.IsOn;
+        SaveSettings($"start volume {(_settings.StartVolumeEnabled ? $"on, {_settings.StartVolume}" : "off")}");
+    }
+
+    private void StartBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
+    {
+        if (_loadingSettings || double.IsNaN(args.NewValue)) return;
+        _settings.StartVolume = (int)Math.Clamp(Math.Round(args.NewValue), 0, 30);
+        SaveSettings($"start volume {_settings.StartVolume}");
+    }
+
+    // ── Diagnostics and About ──────────────────────────────────────────
 
     public void UpdateDiagnostics(SpeakerDiagnostics d, string displayModel, string appVersion)
     {
@@ -320,6 +497,7 @@ public sealed partial class VolumeWindow : Window
             SpeakerState.Searching => "Looking for the speaker",
             _ => "Released (not connected)",
         };
+        DiagExpander.Description = DiagStatus.Text;
         // Mention the name the speaker reports only when it says something the model doesn't.
         DiagSpeaker.Text = d.DeviceName is { } name && d.Model is { } model
                            && !name.Contains(model, StringComparison.OrdinalIgnoreCase)
@@ -329,7 +507,7 @@ public sealed partial class VolumeWindow : Window
         DiagAddress.Text = d.Address ?? "–";
         DiagReconnects.Text = d.Reconnects.ToString();
         DiagError.Text = d.LastError ?? "none";
-        AboutVersion.Text = $"Version {appVersion} · unofficial";
+        AboutExpander.Description = $"Version {appVersion}";
     }
 
     private async void ReconnectButton_Click(object sender, RoutedEventArgs e)
@@ -345,15 +523,22 @@ public sealed partial class VolumeWindow : Window
         }
     }
 
-    private void OpenLogButton_Click(object sender, RoutedEventArgs e)
+    private void OpenLogButton_Click(object sender, RoutedEventArgs e) => Open(Log.FilePath);
+
+    private void GitHubLink_Click(object sender, RoutedEventArgs e) => Open(RepoUrl);
+
+    private void ReportLink_Click(object sender, RoutedEventArgs e) =>
+        Open($"{RepoUrl}/issues/new?template=bug_report.yml");
+
+    private static void Open(string target)
     {
         try
         {
-            Process.Start(new ProcessStartInfo(Log.FilePath) { UseShellExecute = true });
+            Process.Start(new ProcessStartInfo(target) { UseShellExecute = true });
         }
         catch (Exception ex)
         {
-            Log.Write($"Could not open the log: {ex.Message}");
+            Log.Write($"Could not open {target}: {ex.Message}");
         }
     }
 }
@@ -374,9 +559,6 @@ internal static partial class NativeMethods
     [LibraryImport("user32.dll")]
     private static partial nint MonitorFromPoint(POINT point, uint flags);
 
-    [LibraryImport("user32.dll")]
-    private static partial uint GetDpiForWindow(nint hwnd);
-
     [LibraryImport("shcore.dll")]
     private static partial int GetDpiForMonitor(nint monitor, int dpiType, out uint dpiX, out uint dpiY);
 
@@ -390,13 +572,6 @@ internal static partial class NativeMethods
         const int MdtEffectiveDpi = 0;
         var monitor = MonitorFromPoint(point, MonitorDefaultToNearest);
         return GetDpiForMonitor(monitor, MdtEffectiveDpi, out var dpi, out _) == 0 ? dpi / 96.0 : 1.0;
-    }
-
-    /// <summary>Display scale of the monitor a window is on.</summary>
-    internal static double ScaleForWindow(nint hwnd)
-    {
-        var dpi = GetDpiForWindow(hwnd);
-        return dpi > 0 ? dpi / 96.0 : 1.0;
     }
 
     /// <summary>True while a full-screen app, game or presentation is in front.</summary>

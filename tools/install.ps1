@@ -84,7 +84,7 @@ $shell = New-Object -ComObject WScript.Shell
 $link = $shell.CreateShortcut($shortcut)
 $link.TargetPath = $exe
 $link.WorkingDirectory = $InstallDir
-$link.Description = 'Edifier MR studio monitor volume in the system tray'
+$link.Description = 'Edifier MR studio monitor volume in the notification area'
 $link.Save()
 Write-Host "Start menu shortcut: $shortcut"
 

@@ -22,7 +22,7 @@ public enum SpeakerState
 /// (knob, phone app); false for echoes of this app's own requests and for the first reading
 /// after connecting.
 /// </summary>
-public readonly record struct VolumeChange(VolumeLevel Level, bool FromSpeaker);
+public readonly record struct VolumeChange(VolumeLevel Level, bool FromSpeaker, bool IsFirstReading);
 
 /// <summary>A snapshot for the Diagnose view.</summary>
 public sealed record SpeakerDiagnostics(
@@ -158,8 +158,29 @@ public sealed class SpeakerConnection : IAsyncDisposable
     public void RequestVolume(int level)
     {
         var max = Volume?.Max ?? EdifierProtocol.DefaultMaxVolume;
+        if (VolumeLimit is { } limit) max = Math.Min(max, limit);
         Interlocked.Exchange(ref _pendingSet, Math.Clamp(level, 0, max));
         Kick();
+    }
+
+    /// <summary>
+    /// The highest level <see cref="RequestVolume"/> will ever send, or null for no limit.
+    /// The knob on the speaker is not limited.
+    /// </summary>
+    public int? VolumeLimit { get; set; }
+
+    /// <summary>Shown when the speaker hasn't been found after a while.</summary>
+    public const string NotFoundHint =
+        "Not found yet. Is the speaker switched on? Only one device can control it at a time, so close EDIFIER ConneX on your phone.";
+
+    private void SetHintIfStillSearching()
+    {
+        lock (_gate)
+        {
+            if (_state != SpeakerState.Searching || _detail is not null) return;
+            _detail = NotFoundHint;
+        }
+        StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>
@@ -187,7 +208,12 @@ public sealed class SpeakerConnection : IAsyncDisposable
             try
             {
                 SetState(SpeakerState.Searching, failures == 0 ? null : Detail);
-                var address = await FindAsync(_ignored.ToHashSet(), ct).ConfigureAwait(false);
+                ulong address;
+                // After 15 s without finding it, say what to check.
+                using (new Timer(_ => SetHintIfStillSearching(), null, TimeSpan.FromSeconds(15), Timeout.InfiniteTimeSpan))
+                {
+                    address = await FindAsync(_ignored.ToHashSet(), ct).ConfigureAwait(false);
+                }
                 _log($"Found an Edifier control interface at {FormatAddress(address)}.");
                 SetState(SpeakerState.Connecting, null);
                 try
@@ -425,7 +451,9 @@ public sealed class SpeakerConnection : IAsyncDisposable
                 }
                 if (previous == level) continue;
                 var ownEcho = Environment.TickCount64 - Interlocked.Read(ref _lastSetAt) < OwnChangeWindowMs;
-                VolumeChanged?.Invoke(this, new VolumeChange(level, FromSpeaker: previous is not null && !ownEcho));
+                VolumeChanged?.Invoke(this, new VolumeChange(level,
+                    FromSpeaker: previous is not null && !ownEcho,
+                    IsFirstReading: previous is null));
             }
             else if (EdifierProtocol.TryDecodeFirmware(frame, out var firmware))
             {

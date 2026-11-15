@@ -68,7 +68,7 @@ Type: filesandordirs; Name: "{app}\*"
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{userprograms}\Edifier MR Volume"; Filename: "{app}\EdifierMrVolume.exe"; WorkingDir: "{app}"; Comment: "Edifier MR studio monitor volume in the system tray"
+Name: "{userprograms}\Edifier MR Volume"; Filename: "{app}\EdifierMrVolume.exe"; WorkingDir: "{app}"; Comment: "Edifier MR studio monitor volume in the notification area"
 
 [Registry]
 ; The same value the app's own "Start with Windows" menu item writes.

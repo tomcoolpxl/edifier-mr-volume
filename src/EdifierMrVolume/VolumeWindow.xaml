@@ -2,17 +2,34 @@
     x:Class="EdifierMrVolume.VolumeWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:CommunityToolkit.WinUI.Controls"
     Title="Speaker volume">
 
     <Grid x:Name="Root" Background="Transparent" KeyDown="Root_KeyDown">
+        <Grid.Resources>
+            <x:Double x:Key="SettingsCardWrapThreshold">280</x:Double>
+            <x:Double x:Key="SettingsCardWrapNoIconThreshold">220</x:Double>
+            <!-- Settings rows are laid out like Windows 11 Settings cards: a noun label, a line
+                 saying what it does, and the switch on the right. -->
+            <Style x:Key="DiagLabel" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextBlockStyle}">
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+            </Style>
+            <Style x:Key="DiagValue" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextBlockStyle}">
+                <Setter Property="IsTextSelectionEnabled" Value="True" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+        </Grid.Resources>
 
-        <!-- Main view: model, status, settings button, slider and level. -->
+        <!-- Main view: model, status, settings button, messages, mute, slider and level. -->
         <Grid
             x:Name="MainView"
+            VerticalAlignment="Top"
             Padding="20,8,12,16"
             RowSpacing="4"
             PointerWheelChanged="MainView_PointerWheelChanged">
             <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
@@ -47,16 +64,45 @@
                 </Button>
             </Grid>
 
-            <Grid Grid.Row="1" ColumnSpacing="12" Padding="0,0,8,0">
+            <!-- Once, on first start: Windows 11 hides new notification-area icons. -->
+            <InfoBar
+                x:Name="FirstRunBar"
+                Grid.Row="1"
+                Margin="0,0,8,4"
+                IsOpen="False"
+                IsClosable="True"
+                Severity="Informational"
+                Title="Your speaker's volume is the number in the notification area"
+                Message="If Windows hides it, switch it on under Settings › Personalization › Taskbar › Other system tray icons › EdifierMrVolume."
+                Closed="FirstRunBar_Closed" />
+
+            <!-- Why it isn't connected, when it isn't. -->
+            <TextBlock
+                x:Name="MessageText"
+                Grid.Row="2"
+                Margin="0,0,8,4"
+                Style="{StaticResource CaptionTextBlockStyle}"
+                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                TextWrapping="Wrap"
+                Visibility="Collapsed" />
+
+            <Grid Grid.Row="3" ColumnSpacing="8" Padding="0,0,8,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <FontIcon
-                    Glyph="&#xE767;"
-                    FontSize="18"
-                    VerticalAlignment="Center" />
+                <Button
+                    x:Name="MuteButton"
+                    Padding="6"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    IsEnabled="False"
+                    AutomationProperties.Name="Mute"
+                    ToolTipService.ToolTip="Mute"
+                    Click="MuteButton_Click">
+                    <FontIcon x:Name="MuteIcon" Glyph="&#xE767;" FontSize="18" />
+                </Button>
                 <Slider
                     x:Name="VolumeSlider"
                     Grid.Column="1"
@@ -80,12 +126,12 @@
             </Grid>
         </Grid>
 
-        <!-- Settings and diagnostics, behind the gear button. -->
+        <!-- Settings, diagnostics and About, behind the gear button. -->
         <ScrollViewer
             x:Name="SettingsView"
             Visibility="Collapsed"
             VerticalScrollBarVisibility="Auto">
-            <StackPanel Padding="12,8,20,16" Spacing="10">
+            <StackPanel x:Name="SettingsContent" Padding="12,8,12,16" Spacing="8">
                 <StackPanel Orientation="Horizontal" Spacing="4">
                     <Button
                         x:Name="BackButton"
@@ -103,110 +149,157 @@
                         VerticalAlignment="Center" />
                 </StackPanel>
 
-                <StackPanel Padding="8,0,0,0" Spacing="10">
-                    <!-- Laid out like a Windows 11 Settings card: a noun label, a line saying
-                         what it does, and the switch on the right. -->
-                    <Grid ColumnSpacing="12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel VerticalAlignment="Center" Spacing="2">
-                            <TextBlock Text="Auto-open panel" />
-                            <TextBlock
-                                Style="{StaticResource CaptionTextBlockStyle}"
-                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                Text="Opens this panel for a moment when you turn the knob on the speaker."
-                                TextWrapping="Wrap" />
-                        </StackPanel>
+                <!-- Laid out as Microsoft's app-settings guidelines say: SettingsCard and SettingsExpander
+                     from the Windows Community Toolkit, BodyStrong section headers, About at the end.
+                     https://learn.microsoft.com/windows/apps/design/app-settings/guidelines-for-app-settings -->
+                <StackPanel Spacing="4">
+                    <TextBlock Margin="4,4,0,4" Style="{StaticResource BodyStrongTextBlockStyle}" Text="Panel" />
+                    <controls:SettingsExpander
+                        Header="Auto-open panel"
+                        Description="Opens this panel for a moment when you turn the knob on the speaker.">
+                        <controls:SettingsExpander.HeaderIcon>
+                            <FontIcon Glyph="&#xE8A7;" />
+                        </controls:SettingsExpander.HeaderIcon>
                         <ToggleSwitch
                             x:Name="ShowOnKnobSwitch"
-                            Grid.Column="1"
-                            MinWidth="0"
-                            OnContent=""
-                            OffContent=""
-                            HorizontalAlignment="Right"
-                            VerticalAlignment="Center"
                             AutomationProperties.Name="Auto-open panel"
                             Toggled="ShowOnKnobSwitch_Toggled" />
-                    </Grid>
-                    <StackPanel x:Name="HideAfterChoice" Spacing="2">
-                        <TextBlock Text="Close after" />
-                        <StackPanel Orientation="Horizontal">
-                            <StackPanel.Resources>
-                                <Style TargetType="RadioButton" BasedOn="{StaticResource DefaultRadioButtonStyle}">
-                                    <Setter Property="MinWidth" Value="72" />
-                                    <Setter Property="GroupName" Value="HideAfter" />
-                                </Style>
-                            </StackPanel.Resources>
-                            <RadioButton x:Name="Hide1" Content="1 s" Tag="1" Checked="HideAfter_Checked" />
-                            <RadioButton x:Name="Hide2" Content="2 s" Tag="2" Checked="HideAfter_Checked" />
-                            <RadioButton x:Name="Hide3" Content="3 s" Tag="3" Checked="HideAfter_Checked" />
-                            <RadioButton x:Name="Hide5" Content="5 s" Tag="5" Checked="HideAfter_Checked" />
-                        </StackPanel>
-                    </StackPanel>
+                        <controls:SettingsExpander.Items>
+                            <controls:SettingsCard x:Name="HideAfterCard" Header="Close after" ContentAlignment="Vertical">
+                                <StackPanel x:Name="HideAfterChoice" Orientation="Horizontal">
+                                    <StackPanel.Resources>
+                                        <Style TargetType="RadioButton" BasedOn="{StaticResource DefaultRadioButtonStyle}">
+                                            <Setter Property="MinWidth" Value="64" />
+                                            <Setter Property="GroupName" Value="HideAfter" />
+                                        </Style>
+                                    </StackPanel.Resources>
+                                    <RadioButton x:Name="Hide1" Content="1 s" Tag="1" Checked="HideAfter_Checked" />
+                                    <RadioButton x:Name="Hide2" Content="2 s" Tag="2" Checked="HideAfter_Checked" />
+                                    <RadioButton x:Name="Hide3" Content="3 s" Tag="3" Checked="HideAfter_Checked" />
+                                    <RadioButton x:Name="Hide5" Content="5 s" Tag="5" Checked="HideAfter_Checked" />
+                                </StackPanel>
+                            </controls:SettingsCard>
+                        </controls:SettingsExpander.Items>
+                    </controls:SettingsExpander>
 
-                    <TextBlock
-                        Margin="0,6,0,0"
-                        Style="{StaticResource BodyStrongTextBlockStyle}"
-                        Text="Diagnostics" />
-                    <Grid ColumnSpacing="12" RowSpacing="2">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-                        <Grid.Resources>
-                            <Style x:Key="DiagLabel" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextBlockStyle}">
-                                <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
-                            </Style>
-                            <Style x:Key="DiagValue" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextBlockStyle}">
-                                <Setter Property="IsTextSelectionEnabled" Value="True" />
-                                <Setter Property="TextWrapping" Value="Wrap" />
-                            </Style>
-                        </Grid.Resources>
-                        <TextBlock Grid.Row="0" Style="{StaticResource DiagLabel}" Text="Status" />
-                        <TextBlock Grid.Row="0" Grid.Column="1" x:Name="DiagStatus" Style="{StaticResource DiagValue}" />
-                        <TextBlock Grid.Row="1" Style="{StaticResource DiagLabel}" Text="Speaker" />
-                        <TextBlock Grid.Row="1" Grid.Column="1" x:Name="DiagSpeaker" Style="{StaticResource DiagValue}" />
-                        <TextBlock Grid.Row="2" Style="{StaticResource DiagLabel}" Text="Firmware" />
-                        <TextBlock Grid.Row="2" Grid.Column="1" x:Name="DiagFirmware" Style="{StaticResource DiagValue}" />
-                        <TextBlock Grid.Row="3" Style="{StaticResource DiagLabel}" Text="Bluetooth" />
-                        <TextBlock Grid.Row="3" Grid.Column="1" x:Name="DiagAddress" Style="{StaticResource DiagValue}" />
-                        <TextBlock Grid.Row="4" Style="{StaticResource DiagLabel}" Text="Reconnects" />
-                        <TextBlock Grid.Row="4" Grid.Column="1" x:Name="DiagReconnects" Style="{StaticResource DiagValue}" />
-                        <TextBlock Grid.Row="5" Style="{StaticResource DiagLabel}" Text="Last error" />
-                        <TextBlock Grid.Row="5" Grid.Column="1" x:Name="DiagError" Style="{StaticResource DiagValue}" />
-                    </Grid>
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button x:Name="ReconnectButton" Content="Reconnect" Click="ReconnectButton_Click" />
-                        <Button Content="Open log" Click="OpenLogButton_Click" />
-                    </StackPanel>
+                    <TextBlock Margin="4,12,0,4" Style="{StaticResource BodyStrongTextBlockStyle}" Text="Volume" />
+                    <controls:SettingsExpander
+                        Header="Volume limit"
+                        Description="This app never sets the volume higher. The knob on the speaker isn't limited.">
+                        <controls:SettingsExpander.HeaderIcon>
+                            <FontIcon Glyph="&#xE72E;" />
+                        </controls:SettingsExpander.HeaderIcon>
+                        <ToggleSwitch
+                            x:Name="LimitSwitch"
+                            AutomationProperties.Name="Volume limit"
+                            Toggled="LimitSwitch_Toggled" />
+                        <controls:SettingsExpander.Items>
+                            <controls:SettingsCard x:Name="LimitCard" Header="Highest level">
+                                <NumberBox
+                                    x:Name="LimitBox"
+                                    Minimum="1"
+                                    Maximum="30"
+                                    SmallChange="1"
+                                    SpinButtonPlacementMode="Inline"
+                                    AutomationProperties.Name="Highest level"
+                                    ValueChanged="LimitBox_ValueChanged" />
+                            </controls:SettingsCard>
+                        </controls:SettingsExpander.Items>
+                    </controls:SettingsExpander>
+                    <controls:SettingsExpander
+                        Header="Start volume"
+                        Description="Sets this level whenever the app connects to the speaker, for example at sign-in.">
+                        <controls:SettingsExpander.HeaderIcon>
+                            <FontIcon Glyph="&#xE768;" />
+                        </controls:SettingsExpander.HeaderIcon>
+                        <ToggleSwitch
+                            x:Name="StartSwitch"
+                            AutomationProperties.Name="Start volume"
+                            Toggled="StartSwitch_Toggled" />
+                        <controls:SettingsExpander.Items>
+                            <controls:SettingsCard x:Name="StartCard" Header="Level">
+                                <NumberBox
+                                    x:Name="StartBox"
+                                    Minimum="0"
+                                    Maximum="30"
+                                    SmallChange="1"
+                                    SpinButtonPlacementMode="Inline"
+                                    AutomationProperties.Name="Start level"
+                                    ValueChanged="StartBox_ValueChanged" />
+                            </controls:SettingsCard>
+                        </controls:SettingsExpander.Items>
+                    </controls:SettingsExpander>
 
-                    <!-- About: the only place the app icon appears inside the app. -->
-                    <Border Height="1" Margin="0,4,0,0" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
-                    <Grid ColumnSpacing="10">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Image x:Name="AboutIcon" Width="32" Height="32" AutomationProperties.AccessibilityView="Raw" />
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                            <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Edifier MR Volume" />
-                            <TextBlock
-                                x:Name="AboutVersion"
-                                Style="{StaticResource CaptionTextBlockStyle}"
-                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                        </StackPanel>
-                    </Grid>
+                    <TextBlock Margin="4,12,0,4" Style="{StaticResource BodyStrongTextBlockStyle}" Text="Connection" />
+                    <controls:SettingsExpander x:Name="DiagExpander" Header="Diagnostics">
+                        <controls:SettingsExpander.HeaderIcon>
+                            <FontIcon Glyph="&#xE9D9;" />
+                        </controls:SettingsExpander.HeaderIcon>
+                        <controls:SettingsExpander.Items>
+                            <controls:SettingsCard ContentAlignment="Left">
+                                <Grid ColumnSpacing="12" RowSpacing="2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Style="{StaticResource DiagLabel}" Text="Status" />
+                                    <TextBlock Grid.Row="0" Grid.Column="1" x:Name="DiagStatus" Style="{StaticResource DiagValue}" />
+                                    <TextBlock Grid.Row="1" Style="{StaticResource DiagLabel}" Text="Speaker" />
+                                    <TextBlock Grid.Row="1" Grid.Column="1" x:Name="DiagSpeaker" Style="{StaticResource DiagValue}" />
+                                    <TextBlock Grid.Row="2" Style="{StaticResource DiagLabel}" Text="Firmware" />
+                                    <TextBlock Grid.Row="2" Grid.Column="1" x:Name="DiagFirmware" Style="{StaticResource DiagValue}" />
+                                    <TextBlock Grid.Row="3" Style="{StaticResource DiagLabel}" Text="Bluetooth" />
+                                    <TextBlock Grid.Row="3" Grid.Column="1" x:Name="DiagAddress" Style="{StaticResource DiagValue}" />
+                                    <TextBlock Grid.Row="4" Style="{StaticResource DiagLabel}" Text="Reconnects" />
+                                    <TextBlock Grid.Row="4" Grid.Column="1" x:Name="DiagReconnects" Style="{StaticResource DiagValue}" />
+                                    <TextBlock Grid.Row="5" Style="{StaticResource DiagLabel}" Text="Last error" />
+                                    <TextBlock Grid.Row="5" Grid.Column="1" x:Name="DiagError" Style="{StaticResource DiagValue}" />
+                                </Grid>
+                            </controls:SettingsCard>
+                            <controls:SettingsCard ContentAlignment="Left">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button x:Name="ReconnectButton" Content="Reconnect" Click="ReconnectButton_Click" />
+                                    <Button Content="Open log" Click="OpenLogButton_Click" />
+                                </StackPanel>
+                            </controls:SettingsCard>
+                        </controls:SettingsExpander.Items>
+                    </controls:SettingsExpander>
+
+                    <!-- About: the only place the app icon appears inside the app (set in code). -->
+                    <TextBlock Margin="4,12,0,4" Style="{StaticResource BodyStrongTextBlockStyle}" Text="About" />
+                    <controls:SettingsExpander x:Name="AboutExpander" Header="Edifier MR Volume">
+                        <controls:SettingsExpander.Items>
+                            <controls:SettingsCard
+                                Header="GitHub repository"
+                                Description="Source code, releases and the changelog."
+                                IsClickEnabled="True"
+                                Click="GitHubLink_Click">
+                                <controls:SettingsCard.ActionIcon>
+                                    <FontIcon Glyph="&#xE8A7;" />
+                                </controls:SettingsCard.ActionIcon>
+                            </controls:SettingsCard>
+                            <controls:SettingsCard
+                                Header="Report a problem"
+                                Description="Opens the bug report form on GitHub."
+                                IsClickEnabled="True"
+                                Click="ReportLink_Click">
+                                <controls:SettingsCard.ActionIcon>
+                                    <FontIcon Glyph="&#xE8A7;" />
+                                </controls:SettingsCard.ActionIcon>
+                            </controls:SettingsCard>
+                            <controls:SettingsCard
+                                Header="Unofficial"
+                                Description="Not affiliated with or endorsed by Edifier. MIT licence." />
+                        </controls:SettingsExpander.Items>
+                    </controls:SettingsExpander>
                 </StackPanel>
             </StackPanel>
         </ScrollViewer>

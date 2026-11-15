@@ -28,6 +28,21 @@ internal sealed class AppSettings
     /// <summary>How long that pop-up stays after the last change.</summary>
     public int HideAfterSeconds { get; set; } = HideChoices[0];
 
+    /// <summary>Cap what the app sets (slider, wheel, start volume). The knob isn't limited.</summary>
+    public bool VolumeLimitEnabled { get; set; }
+    public int VolumeLimit { get; set; } = 24;
+
+    /// <summary>Set this level whenever the app connects to the speaker.</summary>
+    public bool StartVolumeEnabled { get; set; }
+    public int StartVolume { get; set; } = 10;
+
+    /// <summary>The one-time hint about Windows hiding new notification-area icons was shown.</summary>
+    public bool FirstRunDone { get; set; }
+
+    /// <summary>The limit to pass to the connection, or null when off. Not saved.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int? EffectiveVolumeLimit => VolumeLimitEnabled ? VolumeLimit : null;
+
     public static AppSettings Load()
     {
         try
@@ -36,6 +51,8 @@ internal sealed class AppSettings
                 && JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(FilePath), JsonOptions) is { } loaded)
             {
                 if (!HideChoices.Contains(loaded.HideAfterSeconds)) loaded.HideAfterSeconds = HideChoices[0];
+                loaded.VolumeLimit = Math.Clamp(loaded.VolumeLimit, 1, 30);
+                loaded.StartVolume = Math.Clamp(loaded.StartVolume, 0, 30);
                 return loaded;
             }
         }
