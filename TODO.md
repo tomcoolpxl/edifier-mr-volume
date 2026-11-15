@@ -32,15 +32,21 @@ either offered or named as deliberately left out.
 ## To build: picked by the owner
 
 UX fixes:
-- [ ] Panel sizes to its content (text scaling)
-- [ ] Say why it can't connect (reason in the panel; hint after ~15 s of searching)
-- [ ] Panel next to the taskbar wherever it is
-- [ ] Wording ("notification area"; menu "Show volume" → "Open")
+- [x] Panel sizes to its content (text scaling). *Done: measures its content when shown and when
+      it changes; tested with the first-run hint and the settings view.*
+- [ ] Say why it can't connect (reason in the panel; hint after ~15 s of searching). *Built (reason
+      line under the header, hint after 15 s, "Released…" text); not yet seen on screen: needs the
+      speaker off or the link released.*
+- [ ] Panel next to the taskbar wherever it is. *Built (bottom/top/left/right from the work area);
+      only the bottom taskbar tested, the only layout on this PC.*
+- [ ] Wording ("notification area"; menu "Show volume" → "Open"). *Done in the app, installer and
+      shortcut; README still to do.*
 
 Speaker:
 - [ ] Sound mode: show and switch Monitor / Music / Custom (test switching on the speaker first)
 - [ ] Input: show and switch (find out which number is which input first)
-- [ ] Volume limit (setting; caps what the app sets, not the knob)
+- [x] Volume limit (setting; caps what the app sets, not the knob). *Tested on the speaker: limit 6,
+      slider asked for 8, speaker went to 6. Switched back off.*
 - [ ] Power-off button
 - [ ] **Switch the speakers off when the PC goes to sleep** (owner's own idea; setting, off by
       default; must be tested with a real sleep)
@@ -50,15 +56,43 @@ Speaker:
       known commands read-only) to find where the MR4.5 keeps it
 
 Convenience:
-- [ ] Mute (click the speaker symbol; click again restores)
-- [ ] Start volume (setting; set a level when the app connects; off by default)
-- [ ] First-run hint (where to switch the notification-area icon on; once)
+- [x] Mute (click the speaker symbol; click again restores). *Tested: 7 → 0 → 7.*
+- [x] Start volume (setting; set a level when the app connects; off by default). *Tested: start 5,
+      Reconnect, the app set 6 → 5 on connecting. Switched back off.*
+- [x] First-run hint (where to switch the notification-area icon on; once). *Tested: shown on the
+      first start of the new build, then marked done in settings.json.*
+
+Reviews (owner, 2026-11-16: "make sure it doesn't steal too many cycles", "Do UX review. Think.
+Check online", "check online how to do UX properly according to the Windows ... and WinUI 3
+guidelines"):
+- [x] **Lightweight check**, re-measured on the current build and written down here (the first
+      measurement, 0.02 % CPU while connected, was only said in chat). *2026-11-16, connected and
+      idle for 60 s: 219 ms CPU = 0.37 % of one core = 0.02 % of the 16-core PC; 106 MB private
+      memory (173 MB working set), 54 threads; Bluetooth: one 6-byte query every 0.5 s. Same as the
+      first measurement. Light enough to leave as is.*
+- [ ] Lightweight check again after the speaker features change the connection loop
+- [x] **Settings per Microsoft's WinUI guidance**: SettingsCard / SettingsExpander from the Windows
+      Community Toolkit, BodyStrong section headers, disabled cards say why, About as an expander
+      at the bottom with name, icon, version and links
+      ([Guidelines for app settings](https://learn.microsoft.com/windows/apps/design/app-settings/guidelines-for-app-settings)).
+      *Done: sections Panel, Volume, Connection, About; Diagnostics and About are expanders.*
+- [x] Check Microsoft's WinUI design skill (microsoft/winappCli `winui-design`) for anything else.
+      *Read. Findings: (1) it suggests TeachingTip for onboarding hints; the first-run hint stays an
+      InfoBar because a TeachingTip can't point at the notification-area icon, which is outside the
+      app. (2) It says ComboBox for 4+ choices, but Microsoft's settings guidelines allow radio
+      buttons up to 5, so "Close after" keeps them. (3) Destructive actions need a confirmation:
+      applies to the power-off button, a question for the owner. (4) Test in a High Contrast
+      theme: added to Verify.*
+- [ ] **Rescan**: never offered. Reconnect already rescans before connecting; tell the owner and let
+      them decide whether a separate Rescan is wanted
 
 Project:
-- [ ] Make the repo public, then add a Scoop manifest to tomcoolpxl/scoop-bucket (like cash's)
-- [ ] About links: GitHub repository and "Report a problem" in the About row
+- [x] Make the repo public, then add a Scoop manifest to tomcoolpxl/scoop-bucket (like cash's)
+      *Done 2026-11-16: public; manifest tested with a real scoop install/uninstall and pushed.*
+- [x] About links: GitHub repository and "Report a problem". *Done as clickable cards in the About
+      expander; not clicked in a test (they open the browser).*
 - [ ] Dependabot for NuGet packages and GitHub Actions
-- [ ] README, screenshots (settings view with the About row) and commits for all of the above
+- [ ] README, screenshots (main panel, settings) and commits for all of the above
 - [ ] **Verify**: phone-app handover, wake from sleep, a real reboot with Start with Windows, the
       release zip in a clean folder; light theme and high contrast
 
