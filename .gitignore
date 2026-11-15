@@ -1,0 +1,16 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# .NET / Visual Studio
+bin/
+obj/
+.vs/
+*.user
+*.suo
+AppPackages/
+BundleArtifacts/
+
+# Logs
+*.log
