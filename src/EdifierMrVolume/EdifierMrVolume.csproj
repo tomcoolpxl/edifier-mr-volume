@@ -7,7 +7,6 @@
     <AssemblyName>EdifierMrVolume</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
-    <Version>1.0.0</Version>
     <Product>Edifier MR Volume</Product>
     <Platforms>x64;ARM64</Platforms>
     <Platform Condition="'$(Platform)' == '' or '$(Platform)' == 'AnyCPU' or '$(Platform)' == 'Any CPU'">x64</Platform>

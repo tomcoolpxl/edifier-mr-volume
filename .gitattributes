@@ -1,0 +1,11 @@
+# Text files are stored with LF and checked out with LF, on every machine, so git stops
+# warning about line endings. Visual Studio, PowerShell and the .NET SDK all read LF fine.
+* text=auto eol=lf
+
+# Windows batch files need CRLF.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Binaries.
+*.png binary
+*.ico binary
