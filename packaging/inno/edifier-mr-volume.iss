@@ -1,0 +1,133 @@
+; Per-user installer for Edifier MR Volume: Inno Setup 6, no admin. Installs the
+; self-contained app (what the release zip holds) to %LOCALAPPDATA%\Programs\EdifierMrVolume,
+; the same folder tools\install.ps1 uses, so either one upgrades the other.
+;
+;   iscc /DAppVersion=1.1.0 /DSourceDir=..\..\artifacts\publish\win-x64 packaging\inno\edifier-mr-volume.iss
+;
+; Silent: edifier-mr-volume-vX.Y.Z-win-x64-setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+;         [/TASKS="autostart" | /TASKS=""] [/NOLAUNCH] [/LOG="file"]
+; /NOLAUNCH skips starting the app after a silent install (used by CI).
+
+#ifndef AppVersion
+  #error Pass /DAppVersion=X.Y.Z
+#endif
+#ifndef SourceDir
+  #define SourceDir "..\..\artifacts\publish\win-x64"
+#endif
+; The release tag for the file name (v1.1.0, or v1.1.0-rc.1 for a pre-release);
+; AppVersion stays the plain X.Y.Z that Windows' version fields need.
+#ifndef FileTag
+  #define FileTag "v" + AppVersion
+#endif
+
+[Setup]
+AppId={{2C8E5984-B80D-4BC3-9745-2825F775DE75}
+AppName=Edifier MR Volume
+AppVersion={#AppVersion}
+AppVerName=Edifier MR Volume {#AppVersion}
+AppPublisher=tomcoolpxl
+AppPublisherURL=https://github.com/tomcoolpxl/edifier-mr-volume
+AppSupportURL=https://github.com/tomcoolpxl/edifier-mr-volume/issues
+AppUpdatesURL=https://github.com/tomcoolpxl/edifier-mr-volume/releases
+VersionInfoVersion={#AppVersion}
+VersionInfoDescription=Edifier MR Volume setup: the hardware volume of Edifier MR studio monitors in the Windows tray
+DefaultDirName={localappdata}\Programs\EdifierMrVolume
+DisableDirPage=yes
+DisableProgramGroupPage=yes
+PrivilegesRequired=lowest
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
+; Windows 10 2004, as the app itself requires.
+MinVersion=10.0.19041
+LicenseFile={#SourceDir}\LICENSE
+SetupIconFile=..\..\src\EdifierMrVolume\Assets\app.ico
+UninstallDisplayIcon={app}\EdifierMrVolume.exe
+UninstallDisplayName=Edifier MR Volume
+OutputDir=..\..\artifacts\installer
+OutputBaseFilename=edifier-mr-volume-{#FileTag}-win-x64-setup
+Compression=lzma2/max
+SolidCompression=yes
+WizardStyle=modern
+; The running app is asked to exit cleanly in [Code] (it releases the speaker's Bluetooth
+; link right away), so the Restart Manager has nothing left to close.
+CloseApplications=no
+RestartApplications=no
+UsePreviousTasks=yes
+
+[Languages]
+Name: "english"; MessagesFile: "compiler:Default.isl"
+
+[Tasks]
+Name: "autostart"; Description: "Start Edifier MR Volume when I sign in to Windows"
+
+[InstallDelete]
+; A clean copy every time, so files a newer version dropped don't linger.
+Type: filesandordirs; Name: "{app}\*"
+
+[Files]
+Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+[Icons]
+Name: "{userprograms}\Edifier MR Volume"; Filename: "{app}\EdifierMrVolume.exe"; WorkingDir: "{app}"; Comment: "Edifier MR studio monitor volume in the system tray"
+
+[Registry]
+; The same value the app's own "Start with Windows" menu item writes.
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "EdifierMrVolume"; ValueData: """{app}\EdifierMrVolume.exe"""; Tasks: autostart
+
+[Run]
+Filename: "{app}\EdifierMrVolume.exe"; Description: "Start Edifier MR Volume"; Flags: postinstall nowait skipifsilent
+; After a silent upgrade, start it again unless /NOLAUNCH was given.
+Filename: "{app}\EdifierMrVolume.exe"; Flags: nowait skipifnotsilent; Check: LaunchAfterSilentInstall
+
+[UninstallDelete]
+Type: filesandordirs; Name: "{app}"
+
+[Code]
+const
+  RunKey = 'Software\Microsoft\Windows\CurrentVersion\Run';
+
+function LaunchAfterSilentInstall: Boolean;
+var
+  I: Integer;
+begin
+  Result := True;
+  for I := 1 to ParamCount do
+    if CompareText(ParamStr(I), '/NOLAUNCH') = 0 then
+      Result := False;
+end;
+
+// Asks a running copy installed here to exit cleanly ("--exit" signals it and returns at
+// once), then gives it a few seconds to let go of the speaker and its files.
+procedure CloseRunningApp;
+var
+  Exe: String;
+  ResultCode: Integer;
+begin
+  Exe := ExpandConstant('{app}\EdifierMrVolume.exe');
+  if FileExists(Exe) then
+  begin
+    Log('Asking the running app to exit: ' + Exe + ' --exit');
+    Exec(Exe, '--exit', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Sleep(3000);
+  end;
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  CloseRunningApp;
+  Result := '';
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  Value: String;
+begin
+  if CurUninstallStep = usUninstall then
+  begin
+    CloseRunningApp;
+    // Remove "Start with Windows" only when it points at this copy.
+    if RegQueryStringValue(HKCU, RunKey, 'EdifierMrVolume', Value) and
+       (Pos(Lowercase(ExpandConstant('{app}\EdifierMrVolume.exe')), Lowercase(Value)) > 0) then
+      RegDeleteValue(HKCU, RunKey, 'EdifierMrVolume');
+  end;
+end;
