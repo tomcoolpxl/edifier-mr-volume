@@ -50,17 +50,22 @@ async def run(address: str, action: str, save_path: Path) -> int:
         await client.start_notify(notify, on_notify)
         with_response = "write-without-response" not in write.properties
 
-        async def send(cmd: int, payload: bytes = b"", wait: float = 0.8) -> list[dict]:
+        async def send(cmd: int, payload: bytes = b"", timeout: float = 2.0) -> dict | None:
+            """Write a command and wait for the speaker's reply to it (acks can take ~0.5 s)."""
             replies.clear()
             await client.write_gatt_char(write, build_v2(APP_CODE, cmd, payload), response=with_response)
-            await asyncio.sleep(wait)
-            return [f for f in (parse_v2(r) for r in replies) if f and f["checksum_ok"]]
+            loop = asyncio.get_running_loop()
+            deadline = loop.time() + timeout
+            while loop.time() < deadline:
+                for frame in (parse_v2(r) for r in list(replies)):
+                    if frame and frame["checksum_ok"] and frame["command"] == cmd:
+                        await asyncio.sleep(0.1)  # let pushed follow-ups (0x66, 0xD5) pass
+                        return frame
+                await asyncio.sleep(0.05)
+            return None
 
-        def find(frames: list[dict], cmd: int) -> dict | None:
-            return next((f for f in frames if f["command"] == cmd), None)
-
-        eq = find(await send(0x43), 0x43)
-        mode = find(await send(0xD5), 0xD5)
+        eq = await send(0x43)
+        mode = await send(0xD5)
         if not eq or not mode or len(mode["payload"]) != 7:
             print("Could not read the EQ curve or the sound mode; nothing was changed.")
             return 2
@@ -90,16 +95,19 @@ async def run(address: str, action: str, save_path: Path) -> int:
             mode_payload = bytes([2]) + mode["payload"][1:]  # Custom, tuning bytes echoed as reported
 
         for (index, freq, _), gain in zip(bands, gains):
-            ack = find(await send(0x44, bytes([flag, index, freq >> 8, freq & 0xFF, gain]), 0.3), 0x44)
+            ack = await send(0x44, bytes([flag, index, freq >> 8, freq & 0xFF, gain]))
             if not ack or ack["payload"] != b"\x01":
                 print(f"Band {freq} Hz not acknowledged; stopping. Run 'restore' next.")
                 return 3
-        if find(await send(0xC4, mode_payload), 0xC4) is None:
+        if await send(0xC4, mode_payload) is None:
             print("Sound mode not acknowledged. Run 'restore' next.")
             return 3
 
-        eq = find(await send(0x43), 0x43)
-        mode = find(await send(0xD5), 0xD5)
+        eq = await send(0x43)
+        mode = await send(0xD5)
+        if not eq or not mode:
+            print("Could not read back the result. Run 'restore' next.")
+            return 4
         p = eq["payload"]
         now = [p[6 + 4 * i] for i in range(count)]
         names = ["Monitor", "Music", "Custom"]
