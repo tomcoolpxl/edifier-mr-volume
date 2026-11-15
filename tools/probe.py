@@ -6,9 +6,11 @@ What it does:
   2. Connects to the chosen device and lists its GATT services.
   3. Sends the "get volume" query (command 0x66) and prints the reply.
 
-By default it is read-only. Only --set-test writes: it lowers the volume one
-step and restores it (command 0x67). It never sends EQ, input, LED, shutdown
-or reset commands.
+By default it is read-only. --read sends extra query commands (e.g. 0xD5 sound
+mode, 0xD7 auto-standby, 0x43 custom EQ, 0xC6 firmware) and prints the raw
+replies. Only two flags write: --set-test lowers the volume one step and
+restores it (command 0x67), and --power-off switches the speakers off (0xCE).
+It never sends EQ, input, LED or reset commands.
 
 Protocol facts are taken from two MIT-licensed reverse-engineering projects:
   - github.com/D4n13l3k00/EdifierControl  (src/protocol/protocol.hpp)
@@ -49,6 +51,7 @@ SERVICE_TO_MODEL = {svc.lower(): m for m, (_, svc) in PROFILES.items()}
 
 CMD_GET_VOLUME = 0x66
 CMD_SET_VOLUME = 0x67  # only used by --set-test
+CMD_SHUTDOWN = 0xCE    # only used by --power-off
 # Different clients use different "app code" bytes (EdifierControl 0x0C,
 # omarchy-edifier-mr5 0x06). Try both; the speaker should echo the command.
 APP_CODES = (0x0C, 0x06)
@@ -104,7 +107,9 @@ async def scan(timeout: float) -> list[tuple[BLEDevice, AdvertisementData]]:
     return hits
 
 
-async def probe(address: str, wait: float, watch: float = 0.0, poll: float = 0.5, set_test: bool = False) -> int:
+async def probe(address: str, wait: float, watch: float = 0.0, poll: float = 0.5, set_test: bool = False,
+                reads: list[int] | None = None, power_off: bool = False) -> int:
+    reads = reads or []
     print(f"\nConnecting to {address} ...")
     async with BleakClient(address, timeout=20.0) as client:
         print("Connected. GATT services:")
@@ -181,6 +186,36 @@ async def probe(address: str, wait: float, watch: float = 0.0, poll: float = 0.5
                     print(f"  read back: {r.hex(' ')}" + (f"  -> volume {v[1]} / {v[0]}" if v else ""))
                 replies.clear()
 
+        code = working_code if working_code is not None else APP_CODES[0]
+        for cmd in reads:
+            replies.clear()
+            pkt = build_v2(code, cmd)
+            print(f"\nRead 0x{cmd:02X}: {pkt.hex(' ')}")
+            await client.write_gatt_char(write_ch, pkt, response=use_response)
+            await asyncio.sleep(1.2)
+            if not replies:
+                print("  no reply")
+            for r in replies:
+                p = parse_v2(r)
+                print(f"  reply: {r.hex(' ')}")
+                if p:
+                    pl = p["payload"]
+                    text = "".join(chr(b) if 32 <= b < 127 else "." for b in pl)
+                    print(f"    cmd 0x{p['command']:02X}, checksum_ok={p['checksum_ok']}, "
+                          f"{len(pl)} payload bytes: {pl.hex(' ')}  |{text}|")
+            replies.clear()
+
+        if power_off:
+            pkt = build_v2(code, CMD_SHUTDOWN)
+            print(f"\nPOWER OFF (0x{CMD_SHUTDOWN:02X}): {pkt.hex(' ')}")
+            replies.clear()
+            await client.write_gatt_char(write_ch, pkt, response=use_response)
+            await asyncio.sleep(2.0)
+            for r in replies:
+                print(f"  reply: {r.hex(' ')}  parsed={parse_v2(r)}")
+            if not replies:
+                print("  no reply (expected if the speaker switched off at once)")
+
         if volume is not None and watch > 0:
             print(f"\nWatching for {watch:.0f}s - turn the volume knob now. Polling every {poll:.1f}s.")
             last = volume[1]
@@ -226,10 +261,15 @@ async def main() -> int:
     ap.add_argument("--poll", type=float, default=0.5, help="poll interval in seconds for --watch")
     ap.add_argument("--set-test", action="store_true",
                     help="WRITES: lower the volume one step, then restore it (tests command 0x67)")
+    ap.add_argument("--read", action="append", default=[], type=lambda s: int(s, 16), metavar="HEX",
+                    help="send this query command (hex, e.g. D5) and print the reply; repeatable")
+    ap.add_argument("--power-off", action="store_true",
+                    help="WRITES: switch the speakers off (command 0xCE)")
     args = ap.parse_args()
+    extra = dict(reads=args.read, power_off=args.power_off)
 
     if args.address:
-        return await probe(args.address, args.wait, args.watch, args.poll, args.set_test)
+        return await probe(args.address, args.wait, args.watch, args.poll, args.set_test, **extra)
 
     hits = await scan(args.scan_time)
     if args.scan_only:
@@ -239,7 +279,7 @@ async def main() -> int:
         return 1
     # Prefer a device whose advert names an MR4.5 profile, then strongest signal.
     hits.sort(key=lambda h: ("MR4.5" not in (model_from_adv(h[1]) or ""), -(h[1].rssi or -999)))
-    return await probe(hits[0][0].address, args.wait, args.watch, args.poll, args.set_test)
+    return await probe(hits[0][0].address, args.wait, args.watch, args.poll, args.set_test, **extra)
 
 
 if __name__ == "__main__":
