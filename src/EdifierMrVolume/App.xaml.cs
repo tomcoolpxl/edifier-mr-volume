@@ -79,7 +79,7 @@ public partial class App : Application
         ListenForSignals();
         _settings = AppSettings.Load();
 
-        _speaker = new SpeakerConnection(Log.Write);
+        _speaker = new SpeakerConnection(Log.Write) { VolumeLimit = _settings.EffectiveVolumeLimit };
         _speaker.StateChanged += (_, _) => _ui.TryEnqueue(Refresh);
         _speaker.VolumeChanged += (_, change) => _ui.TryEnqueue(() => OnVolumeChanged(change));
 
@@ -91,8 +91,20 @@ public partial class App : Application
         _speaker.Start();
         Refresh();
 
-        if (commandLine.Contains("--show")) ShowWindow();
+        if (!_settings.FirstRunDone)
+        {
+            // Once: Windows 11 hides new notification-area icons, so say where to switch it on.
+            EnsureWindow().ShowFirstRunHint();
+            ShowWindow();
+        }
+        else if (commandLine.Contains("--show"))
+        {
+            ShowWindow();
+        }
     }
+
+    /// <summary>A setting changed in the panel: apply what the connection needs to know.</summary>
+    private void ApplySettings() => _speaker.VolumeLimit = _settings.EffectiveVolumeLimit;
 
     private void CreateTrayIcon()
     {
@@ -100,7 +112,7 @@ public partial class App : Application
         _autostartItem = new ToggleMenuFlyoutItem { Text = "Start with Windows", Command = new RelayCommand(ToggleAutostart) };
 
         var menu = new MenuFlyout();
-        menu.Items.Add(new MenuFlyoutItem { Text = "Show volume", Command = new RelayCommand(ShowWindow) });
+        menu.Items.Add(new MenuFlyoutItem { Text = "Open", Command = new RelayCommand(ShowWindow) });
         menu.Items.Add(new MenuFlyoutSeparator());
         menu.Items.Add(_connectItem);
         menu.Items.Add(_autostartItem);
@@ -127,6 +139,15 @@ public partial class App : Application
     private void OnVolumeChanged(VolumeChange change)
     {
         Refresh();
+        if (change.IsFirstReading && _settings.StartVolumeEnabled)
+        {
+            var target = Math.Min(_settings.StartVolume, _settings.EffectiveVolumeLimit ?? int.MaxValue);
+            if (target != change.Level.Current)
+            {
+                Log.Write($"Start volume: {change.Level.Current} -> {target}");
+                _speaker.RequestVolume(target);
+            }
+        }
         if (change.FromSpeaker && _settings.ShowOnKnobTurn && !_exiting)
             EnsureWindow().Peek(_settings.HideAfterSeconds);
     }
@@ -236,7 +257,7 @@ public partial class App : Application
     {
         if (_window is null)
         {
-            _window = new VolumeWindow(_speaker, _settings, ReconnectAsync);
+            _window = new VolumeWindow(_speaker, _settings, ReconnectAsync, ApplySettings);
             _window.Update(_speaker.State, _speaker.Volume, DisplayModel, _speaker.Detail);
             _window.UpdateDiagnostics(_speaker.GetDiagnostics(), DisplayModel, AppVersion);
         }
