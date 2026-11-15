@@ -11,8 +11,12 @@ namespace Mr45Volume;
 public partial class App : Application
 {
     private const string SingleInstanceName = @"Local\Mr45Volume.SingleInstance";
+    private const string ShowSignalName = @"Local\Mr45Volume.Show";
+    private const string ExitSignalName = @"Local\Mr45Volume.Exit";
 
     private Mutex? _singleInstance;
+    private EventWaitHandle? _showSignal;
+    private EventWaitHandle? _exitSignal;
     private DispatcherQueue _ui = null!;
     private SpeakerConnection _speaker = null!;
     private TaskbarIcon _tray = null!;
@@ -47,12 +51,16 @@ public partial class App : Application
         _singleInstance = new Mutex(initiallyOwned: true, SingleInstanceName, out var createdNew);
         if (!createdNew)
         {
+            // Already running: a second launch (e.g. the Start menu shortcut) opens its flyout,
+            // and "--exit" asks it to shut down cleanly (used by tools\install.ps1).
+            Signal(commandLine.Contains("--exit") ? ExitSignalName : ShowSignalName);
             Exit();
             return;
         }
 
         _ui = DispatcherQueue.GetForCurrentThread();
         Log.Write("Started.");
+        ListenForSignals();
 
         _speaker = new SpeakerConnection(Log.Write);
         _speaker.StateChanged += (_, _) => _ui.TryEnqueue(Refresh);
@@ -95,6 +103,29 @@ public partial class App : Application
         };
         // Efficiency mode would throttle the BLE polling that follows the knob.
         _tray.ForceCreate(enablesEfficiencyMode: false);
+    }
+
+    private void ListenForSignals()
+    {
+        _showSignal = new EventWaitHandle(false, EventResetMode.AutoReset, ShowSignalName);
+        _exitSignal = new EventWaitHandle(false, EventResetMode.AutoReset, ExitSignalName);
+        ThreadPool.RegisterWaitForSingleObject(_showSignal, (_, _) => _ui.TryEnqueue(ShowWindow),
+            null, Timeout.Infinite, executeOnlyOnce: false);
+        ThreadPool.RegisterWaitForSingleObject(_exitSignal, (_, _) => _ui.TryEnqueue(ExitApp),
+            null, Timeout.Infinite, executeOnlyOnce: true);
+    }
+
+    private static void Signal(string name)
+    {
+        try
+        {
+            using var handle = EventWaitHandle.OpenExisting(name);
+            handle.Set();
+        }
+        catch (WaitHandleCannotBeOpenedException)
+        {
+            // The running copy is too old to listen, or is just exiting.
+        }
     }
 
     /// <summary>Redraws the tray icon if the text or the taskbar theme changed.</summary>

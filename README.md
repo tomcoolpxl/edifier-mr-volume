@@ -12,20 +12,34 @@ interface (the one the EDIFIER ConneX phone app uses), so it doesn't depend on t
 
 Built with WinUI 3 (Windows App SDK 2.6), .NET 10 and [H.NotifyIcon](https://github.com/HavenDV/H.NotifyIcon).
 
-## Build and run
+## Install
 
-Requires the .NET 10 SDK on Windows 10 2004 or later (x64 or ARM64). No pairing in Windows
-Bluetooth settings is needed.
+Requires the .NET 10 SDK to build, on Windows 10 2004 or later (x64 or ARM64). No pairing in
+Windows Bluetooth settings is needed.
+
+```powershell
+.\tools\install.ps1
+```
+
+This publishes a self-contained Release build (.NET and the Windows App SDK runtime included,
+about 240 MB), installs it to `%LOCALAPPDATA%\Programs\Mr45Volume`, adds a **MR4.5 Volume**
+Start menu shortcut and starts it. Rerun it after pulling changes: it closes the running copy
+cleanly, so the speaker reconnects within seconds. Then tick **Start with Windows** in the tray menu.
+
+To uninstall: untick **Start with Windows**, choose **Exit**, then delete
+`%LOCALAPPDATA%\Programs\Mr45Volume`, the Start menu shortcut and `%LOCALAPPDATA%\Mr45Volume` (log).
+
+Command-line switches: `--show` opens the flyout (launching it again while it runs does the
+same), `--exit` closes the running copy.
+
+## Develop
 
 ```powershell
 dotnet build src/Mr45Volume/Mr45Volume.csproj -p:Platform=x64
-src\Mr45Volume\bin\x64\Debug\net10.0-windows10.0.26100.0\win-x64\Mr45Volume.exe
+src\Mr45Volume\bin\x64\Debug\net10.0-windows10.0.26100.0\win-x64\Mr45Volume.exe --show
 ```
 
-`--show` opens the flyout at startup. The Windows App SDK runtime is copied next to the exe,
-so nothing else needs installing.
-
-Run the protocol tests:
+Only one copy runs at a time, so exit the installed one first. Run the protocol tests:
 
 ```powershell
 dotnet test tests/Mr45Volume.Core.Tests
@@ -50,6 +64,8 @@ The log lives in `%LOCALAPPDATA%\Mr45Volume\log.txt`.
 | `src/Mr45Volume.Core` | Protocol (`EdifierProtocol`) and the BLE connection loop (`SpeakerConnection`) |
 | `src/Mr45Volume` | WinUI 3 tray app: tray icon, flyout, autostart, log |
 | `tests/Mr45Volume.Core.Tests` | Protocol tests using bytes captured from a real MR4.5 |
+| `tools/install.ps1` | Publish and install for the current user |
+| `tools/make-icon.ps1` | Draws the app icon (`src/Mr45Volume/Assets/app.ico`) |
 | `tools/probe_mr45.py` | Python/Bleak probe used to verify the protocol |
 
 ## Protocol, verified on an MR4.5 (2026-11-15)

@@ -6,6 +6,7 @@ __pycache__/
 # .NET / Visual Studio
 bin/
 obj/
+artifacts/
 .vs/
 *.user
 *.suo
