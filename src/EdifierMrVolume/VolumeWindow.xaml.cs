@@ -601,18 +601,16 @@ public sealed partial class VolumeWindow : Window
             _eqTarget = null;
         }
 
-        // Which choice the curve is: the user's Custom stays Custom; otherwise a matching preset;
-        // anything else (set in the phone app, say) is the user's own curve.
-        var choice = _settings.EqChoice == EqPresets.CustomName ? EqPresets.CustomName
-            : EqPresets.Match(eq)?.Name ?? EqPresets.CustomName;
-        var save = choice != _settings.EqChoice;
-        _settings.EqChoice = choice;
-        if (choice == EqPresets.CustomName && !(_settings.CustomEq?.SequenceEqual(steps) ?? false))
+        // Which choice the curve is, and the user's own curve to keep (see EqPresets.Resolve).
+        var (choice, custom) = EqPresets.Resolve(_settings.EqChoice, _settings.CustomEq, eq);
+        var customChanged = !ReferenceEquals(custom, _settings.CustomEq)
+            && !(custom is not null && _settings.CustomEq is not null && custom.SequenceEqual(_settings.CustomEq));
+        if (choice != _settings.EqChoice || customChanged)
         {
-            _settings.CustomEq = steps;
-            save = true;
+            _settings.EqChoice = choice;
+            _settings.CustomEq = custom;
+            _settings.Save();
         }
-        if (save) _settings.Save();
         ShowEq(choice, steps);
     }
 

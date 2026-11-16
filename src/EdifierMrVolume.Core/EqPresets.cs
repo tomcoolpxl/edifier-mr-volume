@@ -31,4 +31,18 @@ public static class EqPresets
     /// <summary>The preset this curve is exactly, or null.</summary>
     public static EqPreset? Match(EdifierProtocol.EqCurve curve) =>
         All.FirstOrDefault(p => p.StepsFor(curve).SequenceEqual(curve.Steps));
+
+    /// <summary>
+    /// What the equalizer shows for the speaker's curve, and the user's Custom curve to keep.
+    /// The speaker has one custom curve, which a preset overwrites, so the app keeps the user's
+    /// own: a chosen Custom stays Custom (and follows the speaker); otherwise a curve that is a
+    /// preset shows as that preset, and any other curve (the user's own on first use, or one set
+    /// in the phone app) becomes Custom and is kept.
+    /// </summary>
+    public static (string Choice, int[]? Custom) Resolve(string? savedChoice, int[]? savedCustom,
+        EdifierProtocol.EqCurve curve)
+    {
+        var choice = savedChoice == CustomName ? CustomName : Match(curve)?.Name ?? CustomName;
+        return (choice, choice == CustomName ? curve.Steps : savedCustom);
+    }
 }

@@ -177,6 +177,61 @@ public class EdifierProtocolTests
         Assert.False(EdifierProtocol.TryDecodeEq(frame, out _));
     }
 
+    private static EdifierProtocol.EqCurve CurveWith(int[] steps)
+    {
+        var curve = CapturedCurve();
+        for (var i = 0; i < steps.Length; i++) curve = curve.WithGain(i, curve.Flat + steps[i]);
+        return curve;
+    }
+
+    /// <summary>A first-time user's own curve becomes Custom and is kept for later.</summary>
+    [Fact]
+    public void First_use_keeps_the_users_own_curve_as_custom()
+    {
+        var own = CapturedCurve(); // +3/-1/0/+2: no preset
+        var (choice, custom) = EqPresets.Resolve(null, null, own);
+        Assert.Equal(EqPresets.CustomName, choice);
+        Assert.Equal([3, -1, 0, 2, 0, 0, 0, 0, 0], custom);
+    }
+
+    [Fact]
+    public void First_use_with_a_preset_curve_shows_the_preset()
+    {
+        var curve = CurveWith(EqPresets.Find("Deep bass")!.StepsFor(CapturedCurve()));
+        var (choice, custom) = EqPresets.Resolve(null, null, curve);
+        Assert.Equal("Deep bass", choice);
+        Assert.Null(custom);
+    }
+
+    /// <summary>After picking a preset, the user's curve stays saved for going back to Custom.</summary>
+    [Fact]
+    public void A_preset_keeps_the_saved_custom_curve()
+    {
+        int[] mine = [4, 5, 4, 2, 0, 0, 0, 0, 0];
+        var curve = CurveWith(EqPresets.Find("Balanced")!.StepsFor(CapturedCurve()));
+        var (choice, custom) = EqPresets.Resolve("Balanced", mine, curve);
+        Assert.Equal("Balanced", choice);
+        Assert.Same(mine, custom);
+    }
+
+    [Fact]
+    public void Custom_stays_custom_even_when_it_equals_a_preset()
+    {
+        var steps = EqPresets.Find("Deep + balanced")!.StepsFor(CapturedCurve());
+        var (choice, custom) = EqPresets.Resolve(EqPresets.CustomName, [4, 5, 4, 2, 0, 0, 0, 0, 0], CurveWith(steps));
+        Assert.Equal(EqPresets.CustomName, choice);
+        Assert.Equal(steps, custom);
+    }
+
+    /// <summary>A preset changed in the phone app becomes the user's Custom curve.</summary>
+    [Fact]
+    public void A_preset_changed_elsewhere_becomes_custom()
+    {
+        var (choice, custom) = EqPresets.Resolve("Deep bass", [4, 5, 4, 2, 0, 0, 0, 0, 0], CapturedCurve());
+        Assert.Equal(EqPresets.CustomName, choice);
+        Assert.Equal([3, -1, 0, 2, 0, 0, 0, 0, 0], custom);
+    }
+
     [Fact]
     public void Presets_match_by_band_frequency()
     {
