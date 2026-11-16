@@ -1,5 +1,9 @@
 # Edifier MR Volume
 
+> [!IMPORTANT]
+> This is an independent project. It is made for Edifier speakers, but it is not affiliated
+> with, endorsed by or supported by Edifier.
+
 An unofficial Windows app for **Edifier MR studio monitors** (MR4.5, MR3, MR5). It shows and
 sets the speakers' own hardware volume in the notification area and follows the physical volume
 knob live, and it sets the speakers' sound mode, equalizer, room tuning and power saving. It talks to the
@@ -7,13 +11,13 @@ speaker's Bluetooth LE control interface (the one the EDIFIER ConneX phone app u
 doesn't depend on the Windows volume slider. Control runs over its own Bluetooth LE link,
 separate from the audio input (tested with the speakers fed by a USB audio interface).
 
-The speaker volume in the notification area (the **7** on the left):
+The speaker volume in the notification area (the **3** on the left):
 
 ![Taskbar with the speaker volume shown as a number in the notification area](docs/images/tray.png)
 
 Click it for the panel:
 
-![Panel above the number: model name, power and settings buttons, sound mode, mute, volume slider and level](docs/images/flyout.png)
+![Panel above the number: model name, power and settings buttons, the sound-mode light and choices, mute, volume slider and level](docs/images/flyout.png)
 
 ## Supported speakers
 
@@ -33,8 +37,10 @@ control service it exposes.
   Scroll the mouse wheel over it to change the volume one step per notch.
   From the keyboard: Win+B, the arrow keys to the number, then Enter opens the panel and
   Shift+F10 the menu.
-- Click it for the panel: the sound mode (**Monitor**, **Music**, **Custom**), the volume slider,
-  a mute button and a button that turns the speakers off. The mouse wheel and arrow keys work
+- Click it for the panel: the sound mode (**Monitor**, **Music**, **Custom**) next to a light in
+  the colour the speaker shows for it (red, green, white; click the light for the next mode),
+  the volume slider, a mute button and a button that turns the speakers off. A click outside
+  closes it. The mouse wheel and arrow keys work
   too, and Esc closes it. When the app can't connect, the panel says why in plain words, with a
   button that helps (Reconnect, Bluetooth settings, Connect).
 - Settings, behind the gear:
@@ -67,6 +73,17 @@ control service it exposes.
 ![Settings and diagnostics behind the gear button](docs/images/settings.png)
 
 Built with WinUI 3 (Windows App SDK 2.6), .NET 10 and [H.NotifyIcon](https://github.com/HavenDV/H.NotifyIcon).
+
+### Why Native AOT
+
+The app runs all the time, so it should start fast and stay small. It is compiled with
+Microsoft's [Native AOT](https://learn.microsoft.com/dotnet/core/deploying/native-aot/): the C#
+code becomes machine code when the app is built, instead of being compiled while it runs, and no
+separate .NET runtime ships with it. We measured it against the usual .NET build (and a partial
+C++ rewrite) on the same PC: it starts in half the time (0.19 s instead of 0.40 s until the
+number shows), uses less than a third of the CPU when idle, about 40 MB less memory and 64 MB
+less disk. C++ would have saved only a little more. The numbers and how they were measured are
+in [docs/NATIVE-AOT.md](docs/NATIVE-AOT.md).
 
 ## Install
 
@@ -147,6 +164,7 @@ one click: **Actions › Release › Run workflow** (patch/minor/major); see
 | `.github/workflows` | CI (`ci.yml`) and tag-driven releases (`release.yml`) |
 | `.github/dependabot.yml` | Weekly update pull requests for NuGet, the .NET SDK and the Actions |
 | `docs/RELEASING.md` | Commit convention and release routine |
+| `docs/NATIVE-AOT.md` | Why the app is built with Native AOT: the measurements |
 
 ## Protocol, verified on an MR4.5 (firmware 1.0.0, 2026-11-15 and 16)
 
