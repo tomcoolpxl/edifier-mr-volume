@@ -240,7 +240,11 @@ Project:
       *Done 2026-11-16: public; manifest tested with a real scoop install/uninstall and pushed.*
 - [x] About links: GitHub repository and "Report a problem". *Done as clickable cards in the About
       expander; not clicked in a test (they open the browser).*
-- [ ] Dependabot for NuGet packages and GitHub Actions
+- [x] Dependabot for NuGet packages and GitHub Actions. *Done 2026-11-16: `.github/dependabot.yml`,
+      weekly, as in cash: NuGet (the three projects), the .NET SDK in global.json and the pinned
+      Actions; patch and minor grouped per ecosystem, each major on its own; CI tests every pull
+      request. Not added: cash's automatic merge of green patch/minor updates (the owner chose it
+      for cash, not for this repo) — owner to decide.*
 - [ ] README, screenshots (main panel, settings) and commits for all of the above
 - [ ] **Verify**: phone-app handover, wake from sleep, a real reboot with Start with Windows, the
       release zip in a clean folder; light theme and high contrast
