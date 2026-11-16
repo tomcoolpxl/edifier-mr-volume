@@ -15,3 +15,7 @@ BundleArtifacts/
 
 # Logs
 *.log
+
+# Local working notes and generated release-notes preview
+TODO.md
+release-notes.md
