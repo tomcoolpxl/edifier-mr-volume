@@ -69,6 +69,15 @@ public partial class App : Application
             return;
         }
 
+        // Started inside another app's container (a packaged terminal, say), the settings and
+        // log would land in that app's private folder: start again outside it (see ContainerEscape).
+        if (ContainerEscape.RelaunchIfContained())
+        {
+            Exit();
+            return;
+        }
+        ContainerEscape.ImportStrandedData();
+
         _singleInstance = new Mutex(initiallyOwned: true, SingleInstanceName, out var createdNew);
         if (!createdNew)
         {
