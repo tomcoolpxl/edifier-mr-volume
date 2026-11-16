@@ -69,6 +69,14 @@ Speaker:
       thought it mixed the signals? check online first". Checked: the MR4.5 manual says all audio
       inputs, Bluetooth included, can be used in parallel, so there is no input to switch; what
       `0x61` ("1 of 4") means is unknown. Owner, 2026-11-16: investigate further (read `0x61` while the owner plugs and unplugs sources and connects Bluetooth).*
+      *Online, 2026-11-16 (the plug test still needs the owner): EdifierControl reads `0x61` as
+      `[number of inputs][current input]`, so `04 01` = 4 inputs, current 1; it doesn't name them.
+      Edifier's MR4.5 page lists five inputs: balanced XLR, balanced ¼" TRS, unbalanced RCA,
+      3.5 mm AUX, Bluetooth (6.0, LDAC/SBC); 4 could mean XLR and TRS share a combo socket (not
+      confirmed). The manual: "All audio inputs including Bluetooth connection can be used in
+      parallel." omarchy-edifier-mr5 left input switching out because the "value mapping wasn't
+      reliably pinned down". So switching is probably meaningless on the MR4.5; the plug test
+      would show whether the number follows the source in use.*
 - [x] Volume limit (setting; caps what the app sets, not the knob). *Tested on the speaker: limit 6,
       slider asked for 8, speaker went to 6. Switched back off.*
 - [ ] Power-off: **a right-click menu item and a button in the panel, no confirmation** (owner's
@@ -220,6 +228,14 @@ guidelines"):
       thread was gone after the pointer left the number (no thread from 01:17:04 alive).
       After the power saving switch (one extra read per connection): 141 ms CPU in 60 s
       (0.015 % of the PC), 111 MB private memory. Still light.*
+- [ ] **As light as possible** (owner, 2026-11-16, third time asking: "whatever happened to
+      investigating if the app is as lightweight as possible and doesn't steal cycles?"). *The
+      02:19 recording showed the speaker pushes every knob step by itself, so asking every 0.5 s
+      was unnecessary. Now: the volume is asked every 5 s as a keep-alive, the sound mode every
+      30 s (it is pushed too), silence timeout 16 s. Measured 2026-11-16, connected and idle,
+      60 s each: before 172 ms CPU (0.018 % of the PC, 73 MB); after **78 ms (0.008 %, 72 MB)**,
+      55 % less CPU and a tenth of the Bluetooth traffic; no disconnects. Still to check with the
+      owner awake: the number follows the knob step by step (it relies on the pushes now).*
 - [x] **Settings per Microsoft's WinUI guidance**: SettingsCard / SettingsExpander from the Windows
       Community Toolkit, BodyStrong section headers, disabled cards say why, About as an expander
       at the bottom with name, icon, version and links
