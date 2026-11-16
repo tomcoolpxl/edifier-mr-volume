@@ -69,7 +69,10 @@ Speaker:
       probe). The owner can try it any time.*
 - [ ] **Switch the speakers off when the PC goes to sleep** (owner's own idea; setting, off by
       default). *Built (setting in Power; Windows' suspend callback sends the power-off); must be
-      tested with a real sleep.*
+      tested with a real sleep. 2026-11-16: the owner asked where it was ("I never got anything
+      back"): it was built but off in the owner's settings and never reported plainly. Owner's
+      choice now: **leave it off**. The app log shows no sleep since it was installed. Untested
+      until someone switches it on and sleeps the PC.*
 - [x] **Equalizer**, in settings as an expander (owner's choice, 2026-11-16), not in the main
       panel. *Done 2026-11-16: Settings › Sound › Equalizer: preset ComboBox (Deep bass, Balanced,
       Deep + balanced, Custom) and 9 horizontal band sliders (horizontal because the page scrolls
