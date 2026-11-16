@@ -274,7 +274,12 @@ Project:
       for cash, not for this repo) — owner to decide.*
 - [ ] README, screenshots (main panel, settings) and commits for all of the above
 - [ ] **Verify**: phone-app handover, wake from sleep, a real reboot with Start with Windows, the
-      release zip in a clean folder; light theme and high contrast
+      release zip in a clean folder; light theme and high contrast. *Release zip done 2026-11-16
+      03:01: `package.ps1` from the current code, the zip unpacked into an empty folder (535
+      files), started from there with nothing else running: found and connected to the MR4.5 in
+      4 s; closed with `--exit`, the installed copy restarted. The others need the owner (sleep,
+      reboot, phone, Windows theme settings), plus: README screenshots (the display was off at
+      night), the knob following the number with the lighter connection.*
 
 ## Not picked (2026-11-16)
 
