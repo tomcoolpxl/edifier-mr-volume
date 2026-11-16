@@ -113,8 +113,11 @@ public static class EdifierProtocol
     public static byte[] SetPowerSaving(bool on) => BuildCommand(CmdSetPowerSaving, [(byte)(on ? 1 : 0)]);
 
     /// <summary>
-    /// Custom EQ curve (heard in Custom mode): [maxGain][bandCount][slot], then per band
-    /// [index][freqHi][freqLo][gain], then the curve's name. The MR4.5 has 9 bands, gain 0-12.
+    /// Custom EQ curve (heard in Custom mode): [layout][bandCount][slot], then per band
+    /// [index][freqHi][freqLo][gain], then a 4-byte stamp and the curve's name. Layout 12 is the
+    /// 9-band MR4.5/MR5 curve, 7 the 6-band one (ConneX's eqIndex, per EdifierControl and
+    /// omarchy-edifier-mr5); gain 0-12 with 6 flat. How many dB a step is isn't published
+    /// (EdifierControl shows 0.5 dB, omarchy-edifier-mr3 assumes 1 dB), so the app shows steps.
     /// </summary>
     public const byte CmdGetEq = 0x43;
     /// <summary>Sets one band: [slot][index][freqHi][freqLo][gain]; the speaker acks 01.</summary>
@@ -123,9 +126,12 @@ public static class EdifierProtocol
     public sealed record EqBand(int Index, int Frequency, int Gain);
 
     /// <summary>The custom EQ curve as the speaker reported it.</summary>
-    public sealed record EqCurve(int MaxGain, byte Slot, IReadOnlyList<EqBand> Bands)
+    public sealed record EqCurve(int Layout, byte Slot, IReadOnlyList<EqBand> Bands)
     {
-        /// <summary>The gain byte for "no change" (6 on the MR4.5).</summary>
+        /// <summary>Highest gain byte; the MR3 clamps anything above it.</summary>
+        public const int MaxGain = 12;
+
+        /// <summary>The gain byte for "no change".</summary>
         public int Flat => MaxGain / 2;
 
         /// <summary>Largest step up or down from flat.</summary>
@@ -138,9 +144,9 @@ public static class EdifierProtocol
             this with { Bands = Bands.Select((b, i) => i == band ? b with { Gain = gain } : b).ToArray() };
 
         public bool Equals(EqCurve? other) =>
-            other is not null && MaxGain == other.MaxGain && Slot == other.Slot && Bands.SequenceEqual(other.Bands);
+            other is not null && Layout == other.Layout && Slot == other.Slot && Bands.SequenceEqual(other.Bands);
 
-        public override int GetHashCode() => HashCode.Combine(MaxGain, Slot, Bands.Count);
+        public override int GetHashCode() => HashCode.Combine(Layout, Slot, Bands.Count);
     }
 
     public static bool TryDecodeEq(Frame frame, out EqCurve curve)
@@ -148,27 +154,28 @@ public static class EdifierProtocol
         curve = null!;
         var p = frame.Payload;
         if (!frame.ChecksumOk || frame.Command != CmdGetEq || p.Length < 3) return false;
-        int maxGain = p[0], count = p[1];
-        if (maxGain is < 2 or > 30 || count is < 1 or > 16 || p.Length < 3 + 4 * count) return false;
+        int layout = p[0], count = p[1];
+        // Only the layouts with a slot byte and 4-byte bands; others are laid out differently.
+        if (layout is not (7 or 12) || count is < 1 or > 16 || p.Length < 3 + 4 * count) return false;
         var bands = new EqBand[count];
         for (var i = 0; i < count; i++)
         {
             var at = 3 + 4 * i;
             bands[i] = new EqBand(p[at], (p[at + 1] << 8) | p[at + 2], p[at + 3]);
-            if (bands[i].Gain > maxGain) return false;
+            if (bands[i].Gain > EqCurve.MaxGain) return false;
         }
-        curve = new EqCurve(maxGain, p[2], bands);
+        curve = new EqCurve(layout, p[2], bands);
         return true;
     }
 
     /// <summary>
-    /// Sets one band, by its position in the reported curve, to a gain byte (0..MaxGain). The
+    /// Sets one band, by its position in the reported curve, to a gain byte (0-12). The
     /// slot, band index and frequency are echoed from the speaker's own reply.
     /// </summary>
     public static byte[] SetEqBand(EqCurve current, int band, int gain)
     {
         var b = current.Bands[band];
-        gain = Math.Clamp(gain, 0, current.MaxGain);
+        gain = Math.Clamp(gain, 0, EqCurve.MaxGain);
         return BuildCommand(CmdSetEqBand,
             [current.Slot, (byte)b.Index, (byte)(b.Frequency >> 8), (byte)(b.Frequency & 0xFF), (byte)gain]);
     }
