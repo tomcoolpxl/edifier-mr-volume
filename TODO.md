@@ -10,6 +10,13 @@ either offered or named as deliberately left out.
       without the Edifier name. Not in the taskbar (the tray keeps the volume number); shown in
       the settings/About part of the panel. *Done: `assets/icon/*.svg` (graphite cabinet, warm-white
       tweeter, copper woofer), exe icon via `tools/make-icon.ps1`, About row in settings.*
+      *Owner, 2026-11-16: "The icon is crap", with photos of the black and white MR4.5: make it
+      from the black one; the copper should look like the white one's photo (duller, "dull
+      shiny"). Redrawn by `tools/draw-icon.py`: satin black cabinet, dimpled waveguide with
+      copper-ringed glossy tweeter, rubber surround, carbon-chevron cone, spun-copper dust cap
+      (wedges, colours sampled from the white photo: #5E2E20-#E29C70); simplified version for
+      16-24 px; no Edifier name. Checked at 16-256 px on dark and light, next to the photos at
+      512 px, and in the About row (WinUI's SVG renderer).*
 - [x] **Firmware check**: the speaker reports 1.0.0 (`0xC6` → `01 00 00`). *Checked: omarchy-edifier-mr3
       reads the same command the same way (bytes joined by dots) and gets 1.0.7 from an MR3, so this
       is the firmware version; 1.0.0 fits a model released in August 2026. The ConneX app can confirm.*
