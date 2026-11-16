@@ -53,6 +53,12 @@ function Close-App([string]$ProcessName) {
     }
 }
 
+# Native AOT links with Visual Studio's C++ tools and finds them with vswhere.exe, which isn't
+# always on PATH.
+$vswhereDir = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer'
+if (-not (Get-Command vswhere.exe -ErrorAction SilentlyContinue) -and (Test-Path (Join-Path $vswhereDir 'vswhere.exe'))) {
+    $env:PATH = "$env:PATH;$vswhereDir"
+}
 Write-Host "Publishing $rid (Release, self-contained)..."
 dotnet publish $project -c Release -p:Platform=$Platform -r $rid --self-contained true -o $publishDir -nologo -v:q
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed (exit $LASTEXITCODE)." }

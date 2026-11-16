@@ -11,12 +11,12 @@ public static class RoomPresets
 {
     public sealed record BassChoice(string Name, int LowCutHz, int Slope);
 
-    public static readonly IReadOnlyList<BassChoice> Bass =
-    [
+    public static readonly IReadOnlyList<BassChoice> Bass = new BassChoice[]
+    {
         new("Full bass", 30, 3),
         new("Tighter bass", 50, 3),
         new("Light bass", 80, 3),
-    ];
+    };
 
     /// <summary>The choice the speaker's low cut and slope are, or null when none matches.</summary>
     public static BassChoice? MatchBass(EdifierProtocol.RoomTuning tuning) =>

@@ -3,6 +3,9 @@
   <PropertyGroup>
     <TargetFramework>$(WindowsTfm)</TargetFramework>
     <RootNamespace>EdifierMrVolume.Core</RootNamespace>
+    <!-- C#/WinRT generates interop code for the collections that may cross the WinRT ABI; it
+         needs unsafe code for that (Native AOT, warning CsWinRT1030). -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
 </Project>

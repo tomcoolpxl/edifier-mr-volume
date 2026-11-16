@@ -1,11 +1,13 @@
 using System.Diagnostics;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Windows.Input;
 using Microsoft.Win32;
 
 namespace EdifierMrVolume;
 
-internal sealed class RelayCommand(Action execute) : ICommand
+/// <summary>Partial, so C#/WinRT can generate its interop code for Native AOT.</summary>
+internal sealed partial class RelayCommand(Action execute) : ICommand
 {
     public event EventHandler? CanExecuteChanged { add { } remove { } }
 
@@ -19,7 +21,6 @@ internal sealed class AppSettings
 {
     public static readonly int[] HideChoices = [1, 2, 3, 5];
 
-    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
     private static string FilePath => Path.Combine(Log.Folder, "settings.json");
 
     /// <summary>Pop the flyout up (without taking focus) when the volume is changed on the speaker.</summary>
@@ -56,7 +57,7 @@ internal sealed class AppSettings
     public int[]? CustomEq { get; set; }
 
     /// <summary>The limit to pass to the connection, or null when off. Not saved.</summary>
-    [System.Text.Json.Serialization.JsonIgnore]
+    [JsonIgnore]
     public int? EffectiveVolumeLimit => VolumeLimitEnabled ? VolumeLimit : null;
 
     public static AppSettings Load()
@@ -64,7 +65,7 @@ internal sealed class AppSettings
         try
         {
             if (File.Exists(FilePath)
-                && JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(FilePath), JsonOptions) is { } loaded)
+                && JsonSerializer.Deserialize(File.ReadAllText(FilePath), SettingsJson.Default.AppSettings) is { } loaded)
             {
                 if (!HideChoices.Contains(loaded.HideAfterSeconds)) loaded.HideAfterSeconds = HideChoices[0];
                 loaded.VolumeLimit = Math.Clamp(loaded.VolumeLimit, 1, 30);
@@ -84,7 +85,7 @@ internal sealed class AppSettings
         try
         {
             Directory.CreateDirectory(Log.Folder);
-            File.WriteAllText(FilePath, JsonSerializer.Serialize(this, JsonOptions));
+            File.WriteAllText(FilePath, JsonSerializer.Serialize(this, SettingsJson.Default.AppSettings));
         }
         catch (Exception ex)
         {
@@ -92,6 +93,14 @@ internal sealed class AppSettings
         }
     }
 }
+
+/// <summary>
+/// settings.json without reflection: generated at build time, as Native AOT needs (same file
+/// format as before).
+/// </summary>
+[JsonSourceGenerationOptions(WriteIndented = true)]
+[JsonSerializable(typeof(AppSettings))]
+internal sealed partial class SettingsJson : JsonSerializerContext;
 
 /// <summary>Per-user "start with Windows" via the HKCU Run key.</summary>
 internal static class Autostart

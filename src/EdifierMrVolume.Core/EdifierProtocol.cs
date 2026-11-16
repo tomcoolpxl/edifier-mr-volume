@@ -23,8 +23,8 @@ public static class EdifierProtocol
     public static readonly Guid NotifyCharacteristic = new("48090001-1a48-11e9-ab14-d663bd873d93");
     public static readonly Guid WriteCharacteristic = new("48090002-1a48-11e9-ab14-d663bd873d93");
 
-    public static readonly IReadOnlyList<SpeakerModel> Models =
-    [
+    public static readonly IReadOnlyList<SpeakerModel> Models = new SpeakerModel[]
+    {
         // Verified on hardware with this app.
         new("MR4.5", new("00006303-0000-1000-8000-00805f9b34fb"), new("48096303-1a48-11e9-ab14-d663bd873d93")),
         // Later MR4.5 revision with the 8625 DSP (UUIDs from EdifierControl; not tested here).
@@ -37,7 +37,7 @@ public static class EdifierProtocol
         new("MR5", new("00003a01-0000-1000-8000-00805f9b34fb"), new("48093a01-1a48-11e9-ab14-d663bd873d93")),
         // Later MR5 revision with the 8625 DSP (UUIDs from EdifierControl; not tested here).
         new("MR5 (8625)", new("00007e03-0000-1000-8000-00805f9b34fb"), new("48097e03-1a48-11e9-ab14-d663bd873d93")),
-    ];
+    };
 
     public static SpeakerModel? ModelForService(Guid serviceUuid) =>
         Models.FirstOrDefault(m => m.ServiceUuid == serviceUuid);
@@ -58,7 +58,7 @@ public static class EdifierProtocol
     /// <summary>Switches the speakers off; they must be switched on by hand.</summary>
     public const byte CmdPowerOff = 0xCE;
 
-    public static readonly IReadOnlyList<string> SoundModeNames = ["Monitor", "Music", "Custom"];
+    public static readonly IReadOnlyList<string> SoundModeNames = new[] { "Monitor", "Music", "Custom" };
 
     /// <summary>The sound-mode reply: the mode plus the six room-tuning bytes, kept as reported.</summary>
     public sealed record SoundState(int Mode, byte[] Tuning)

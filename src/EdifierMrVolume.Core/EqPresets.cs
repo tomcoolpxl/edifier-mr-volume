@@ -30,14 +30,14 @@ public static class EqPresets
     /// <summary>The saved choice for what the list shows.</summary>
     public static string ChoiceFor(string label) => label == CustomLabel ? CustomName : label;
 
-    public static readonly IReadOnlyList<EqPreset> All =
-    [
+    public static readonly IReadOnlyList<EqPreset> All = new EqPreset[]
+    {
         // More low bass, a little less of the hump.
         new("Deep bass", new Dictionary<int, int> { [62] = 3, [125] = -1 }),
         // Evens out the hump and the dip around the 2.8 kHz crossover.
         new("Balanced", new Dictionary<int, int> { [125] = -2, [2000] = 2 }),
         new("Deep + balanced", new Dictionary<int, int> { [62] = 3, [125] = -2, [2000] = 2 }),
-    ];
+    };
 
     public static EqPreset? Find(string? name) => All.FirstOrDefault(p => p.Name == name);
 

@@ -21,6 +21,10 @@
     <!-- Unpackaged, with the Windows App SDK runtime copied next to the exe: no installer needed. -->
     <WindowsPackageType>None</WindowsPackageType>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <!-- Native AOT: compiled to machine code, no .NET runtime. Measured 2026-11-16 against the JIT
+         build: start 402 -> 191 ms, working set 117 -> 76 MB, install 237 -> 173 MB. Needs the MSVC
+         C++ build tools. -->
+    <PublishAot>true</PublishAot>
     <!-- Needed by [LibraryImport] for the few Win32 calls (cursor position, monitor DPI). -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>

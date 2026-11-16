@@ -35,6 +35,12 @@ $artifacts = Join-Path $repo 'artifacts'
 $publish = Join-Path $artifacts "publish\$rid"
 $base = "edifier-mr-volume-$Tag-$rid"
 
+# Native AOT links with Visual Studio's C++ tools and finds them with vswhere.exe, which isn't
+# always on PATH.
+$vswhereDir = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer'
+if (-not (Get-Command vswhere.exe -ErrorAction SilentlyContinue) -and (Test-Path (Join-Path $vswhereDir 'vswhere.exe'))) {
+    $env:PATH = "$env:PATH;$vswhereDir"
+}
 Write-Host "Publishing $rid $version..."
 if (Test-Path $publish) { Remove-Item $publish -Recurse -Force }
 dotnet publish (Join-Path $repo 'src\EdifierMrVolume\EdifierMrVolume.csproj') -c Release `
