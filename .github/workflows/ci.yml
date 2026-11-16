@@ -67,6 +67,21 @@ jobs:
         shell: pwsh
         run: ./tools/package.ps1
 
+      # What ships is the Native AOT build (PublishAot): no .NET runtime next to it. Start that
+      # one too, since a working JIT build says nothing about the AOT one.
+      - name: Smoke-launch the published Native AOT app
+        shell: pwsh
+        run: |
+          $dir = 'artifacts/publish/win-x64'
+          if (Test-Path (Join-Path $dir 'coreclr.dll')) { Write-Error 'The published app ships the .NET runtime, so it is not the Native AOT build.'; exit 1 }
+          $exe = Join-Path $dir 'EdifierMrVolume.exe'
+          $out = Join-Path $env:RUNNER_TEMP 'icons-aot'
+          $p = Start-Process -FilePath $exe -ArgumentList '--render-icons', $out -PassThru
+          if (-not $p.WaitForExit(60000)) { $p.Kill(); Write-Error 'The AOT app did not exit within 60 s.'; exit 1 }
+          if ($p.ExitCode -ne 0) { Write-Error "The AOT app exited with $($p.ExitCode)."; exit 1 }
+          if (-not (Test-Path (Join-Path $out 'sheet.png'))) { Write-Error 'The AOT app wrote no icon sheet.'; exit 1 }
+          Write-Host ('The Native AOT app started, drew its tray icons and exited ({0:N0} MB published).' -f ((Get-ChildItem $dir -Recurse -File | Measure-Object Length -Sum).Sum / 1MB))
+
       # The installer on a machine that never had the app: silent install into a temp
       # folder (no autostart, no launch), check the files, silent uninstall, check it's gone.
       - name: Install and uninstall the installer
