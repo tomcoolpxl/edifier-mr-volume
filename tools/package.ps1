@@ -5,7 +5,8 @@
 
 .DESCRIPTION
     1. dotnet publish: Native AOT, self-contained (the Windows App SDK runtime included).
-    2. edifier-mr-volume-<tag>-win-<arch>.zip with README.md and LICENSE beside the exe.
+    2. edifier-mr-volume-<tag>-win-<arch>.zip with README.md, LICENSE and
+       THIRD-PARTY-NOTICES.md beside the exe, without debug symbols (.pdb).
     3. edifier-mr-volume-<tag>-win-<arch>-setup.exe from packaging\inno (Inno Setup 6's ISCC).
     4. "<sha256>  <file>" in <file>.sha256 for each, the format Scoop's autoupdate reads.
     ARM64 is cross-compiled on an x64 PC; that needs Visual Studio's "C++ ARM64 build tools"
@@ -50,7 +51,9 @@ if (Test-Path $publish) { Remove-Item $publish -Recurse -Force }
 dotnet publish (Join-Path $repo 'src\EdifierMrVolume\EdifierMrVolume.csproj') -c Release `
     -p:Platform=$Platform -r $rid --self-contained true -o $publish -nologo -v:q
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed (exit $LASTEXITCODE)." }
-Copy-Item (Join-Path $repo 'README.md'), (Join-Path $repo 'LICENSE') $publish
+Copy-Item (Join-Path $repo 'README.md'), (Join-Path $repo 'LICENSE'), (Join-Path $repo 'THIRD-PARTY-NOTICES.md') $publish
+# Debug symbols stay out of the release files: they only help read crash dumps.
+Get-ChildItem $publish -Filter *.pdb -Recurse | Remove-Item
 
 function Write-Checksum([string]$file) {
     $hash = (Get-FileHash -Path $file -Algorithm SHA256).Hash.ToLower()
