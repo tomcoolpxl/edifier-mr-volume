@@ -307,6 +307,20 @@
                             AutomationProperties.Name="Switch off when the PC sleeps"
                             Toggled="SleepOffSwitch_Toggled" />
                     </controls:SettingsCard>
+                    <!-- The speaker's own setting (0xB1/0xB2), shown as the speaker reports it; the knob
+                         (volume 0, double-press) switches the same setting. -->
+                    <controls:SettingsCard
+                        x:Name="PowerSavingCard"
+                        Header="Power saving"
+                        IsEnabled="False">
+                        <controls:SettingsCard.HeaderIcon>
+                            <FontIcon Glyph="&#xE708;" />
+                        </controls:SettingsCard.HeaderIcon>
+                        <ToggleSwitch
+                            x:Name="PowerSavingSwitch"
+                            AutomationProperties.Name="Power saving"
+                            Toggled="PowerSavingSwitch_Toggled" />
+                    </controls:SettingsCard>
 
                     <TextBlock Margin="4,12,0,4" Style="{StaticResource BodyStrongTextBlockStyle}" Text="Connection" />
                     <controls:SettingsExpander x:Name="DiagExpander" Header="Diagnostics">

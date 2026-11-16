@@ -64,6 +64,7 @@ public sealed class SpeakerConnection : IAsyncDisposable
     private readonly System.Collections.Concurrent.ConcurrentQueue<byte[]> _outbox = new();
     private EdifierProtocol.SoundState? _sound;
     private EdifierProtocol.EqCurve? _eq;
+    private bool? _powerSaving;
     /// <summary>EQ steps to apply; only the latest request counts (slider drags).</summary>
     private int[]? _pendingEq;
     /// <summary>Set while a write waits for the speaker's reply to that command.</summary>
@@ -141,6 +142,22 @@ public sealed class SpeakerConnection : IAsyncDisposable
         var current = Equalizer;
         if (current is null || steps.Length != current.Bands.Count || State != SpeakerState.Connected) return false;
         Interlocked.Exchange(ref _pendingEq, (int[])steps.Clone());
+        Kick();
+        return true;
+    }
+
+    /// <summary>
+    /// The speaker's power saving (standby after 15 minutes without sound) as it last reported
+    /// it, or null before it has.
+    /// </summary>
+    public bool? PowerSaving { get { lock (_gate) return _powerSaving; } }
+
+    /// <summary>Switches power saving on or off, then reads it back.</summary>
+    public bool RequestPowerSaving(bool on)
+    {
+        if (PowerSaving is null || State != SpeakerState.Connected) return false;
+        _outbox.Enqueue(EdifierProtocol.SetPowerSaving(on));
+        _outbox.Enqueue(EdifierProtocol.BuildCommand(EdifierProtocol.CmdGetPowerSaving));
         Kick();
         return true;
     }
@@ -516,6 +533,8 @@ public sealed class SpeakerConnection : IAsyncDisposable
                 // The EQ only changes through this app or the phone app (which can't be connected
                 // at the same time), so it is read once per connection, not polled.
                 await WriteAsync(EdifierProtocol.BuildCommand(EdifierProtocol.CmdGetEq), ct).ConfigureAwait(false);
+                // Power saving changes only here or with the knob, which pushes 0xB1: read once.
+                await WriteAsync(EdifierProtocol.BuildCommand(EdifierProtocol.CmdGetPowerSaving), ct).ConfigureAwait(false);
             }
 
             // The sound mode changes rarely (button on the speaker, the phone app): every 5 s.
@@ -646,6 +665,20 @@ public sealed class SpeakerConnection : IAsyncDisposable
                 }
                 if (changed) StateChanged?.Invoke(this, EventArgs.Empty);
             }
+            else if (EdifierProtocol.TryDecodePowerSaving(frame, out var powerSaving))
+            {
+                bool changed;
+                lock (_gate)
+                {
+                    changed = _powerSaving != powerSaving;
+                    _powerSaving = powerSaving;
+                }
+                if (changed)
+                {
+                    _log($"Power saving: {(powerSaving ? "on" : "off")}.");
+                    StateChanged?.Invoke(this, EventArgs.Empty);
+                }
+            }
             else if (EdifierProtocol.TryDecodeFirmware(frame, out var firmware))
             {
                 lock (_gate) _firmware = firmware;
@@ -683,6 +716,7 @@ public sealed class SpeakerConnection : IAsyncDisposable
             _volume = null;
             _sound = null;
             _eq = null;
+            _powerSaving = null;
             _replyWaiter = null;
             _connectedSince = null;
         }

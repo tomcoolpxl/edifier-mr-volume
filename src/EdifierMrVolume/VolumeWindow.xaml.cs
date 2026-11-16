@@ -285,6 +285,7 @@ public sealed partial class VolumeWindow : Window
         var connected = state == SpeakerState.Connected;
         UpdateSoundMode(connected ? sound : null);
         UpdateEqualizer(connected ? eq : null);
+        UpdatePowerSaving(connected ? _speaker.PowerSaving : null);
         PowerButton.IsEnabled = connected && !_speaker.SwitchedOff;
         ModelText.Text = model;
         StatusText.Text = state switch
@@ -532,6 +533,34 @@ public sealed partial class VolumeWindow : Window
         if (_loadingSettings) return;
         _settings.PowerOffOnSleep = SleepOffSwitch.IsOn;
         SaveSettings($"switch off when the PC sleeps = {_settings.PowerOffOnSleep}");
+    }
+
+    private const string PowerSavingDescription =
+        "The speakers go to standby after 15 minutes without sound. Switched off, they use more power.";
+    private bool _updatingPowerSaving;
+
+    /// <summary>Shows the speaker's power saving setting; disabled (and says why) until it is known.</summary>
+    private void UpdatePowerSaving(bool? on)
+    {
+        PowerSavingCard.IsEnabled = on is not null;
+        PowerSavingCard.Description = on is null ? "Available once the app is connected to the speaker." : PowerSavingDescription;
+        if (on is not { } value || PowerSavingSwitch.IsOn == value) return;
+        _updatingPowerSaving = true;
+        try
+        {
+            PowerSavingSwitch.IsOn = value;
+        }
+        finally
+        {
+            _updatingPowerSaving = false;
+        }
+    }
+
+    private void PowerSavingSwitch_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_updatingPowerSaving) return;
+        if (_speaker.RequestPowerSaving(PowerSavingSwitch.IsOn))
+            Log.Write($"Power saving -> {(PowerSavingSwitch.IsOn ? "on" : "off")}");
     }
 
     private void StartBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)

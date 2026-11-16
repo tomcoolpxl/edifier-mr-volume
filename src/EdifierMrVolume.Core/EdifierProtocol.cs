@@ -93,6 +93,26 @@ public static class EdifierProtocol
     public static byte[] PowerOff() => BuildCommand(CmdPowerOff);
 
     /// <summary>
+    /// Power saving (standby after 15 minutes without sound): [00 off | 01 on]. Also pushed by
+    /// the speaker when it is switched with the knob (volume 0, double-press). Found on an MR4.5,
+    /// 2026-11-16.
+    /// </summary>
+    public const byte CmdGetPowerSaving = 0xB1;
+    /// <summary>Sets power saving: [00 | 01]; the speaker answers with the previous value.</summary>
+    public const byte CmdSetPowerSaving = 0xB2;
+
+    public static bool TryDecodePowerSaving(Frame frame, out bool on)
+    {
+        on = false;
+        if (!frame.ChecksumOk || frame.Command != CmdGetPowerSaving || frame.Payload.Length != 1 || frame.Payload[0] > 1)
+            return false;
+        on = frame.Payload[0] == 1;
+        return true;
+    }
+
+    public static byte[] SetPowerSaving(bool on) => BuildCommand(CmdSetPowerSaving, [(byte)(on ? 1 : 0)]);
+
+    /// <summary>
     /// Custom EQ curve (heard in Custom mode): [maxGain][bandCount][slot], then per band
     /// [index][freqHi][freqLo][gain], then the curve's name. The MR4.5 has 9 bands, gain 0-12.
     /// </summary>
