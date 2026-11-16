@@ -32,6 +32,10 @@ public partial class App : Application
     private ToggleMenuFlyoutItem _connectItem = null!;
     private ToggleMenuFlyoutItem _autostartItem = null!;
     private MenuFlyoutItem _powerItem = null!;
+    private TrayWheel? _wheel;
+    /// <summary>The level the wheel asked for last, and when: the base for the next notch.</summary>
+    private int _wheelTarget;
+    private long _wheelAt = long.MinValue / 2;
     private VolumeWindow? _window;
     private AppSettings _settings = new();
     private readonly UISettings _uiSettings = new();
@@ -136,6 +140,35 @@ public partial class App : Application
         };
         // Efficiency mode would throttle the BLE polling that follows the knob.
         _tray.ForceCreate(enablesEfficiencyMode: false);
+
+        // Scroll wheel over the number: one step per notch (owner's request, 2026-11-16).
+        _wheel = new TrayWheel(_tray.TrayIcon.Id, notch => _ui.TryEnqueue(() => OnWheel(notch)));
+        _tray.TrayIcon.MessageWindow.MouseEventReceived += (_, e) =>
+        {
+            if (e.MouseEvent == H.NotifyIcon.Core.MouseEvent.MouseMove) _wheel.PointerOverIcon();
+        };
+    }
+
+    /// <summary>
+    /// One wheel notch over the number: one step up or down. The Volume limit applies, and a
+    /// notch up never lowers the volume (when the knob has set it above the limit).
+    /// </summary>
+    private void OnWheel(int notch)
+    {
+        if (_exiting || _speaker.State != SpeakerState.Connected || _speaker.Volume is not { } volume) return;
+        var now = Environment.TickCount64;
+        // While notches follow each other, count from the last one, not from the speaker's
+        // reply, which lags behind.
+        var from = now - _wheelAt < 1500 ? _wheelTarget : volume.Current;
+        var highest = Math.Min(volume.Max, _settings.EffectiveVolumeLimit ?? volume.Max);
+        var target = from + notch;
+        if (notch > 0 && target > highest) return; // at the limit, or above it by the knob
+        target = Math.Clamp(target, 0, highest);
+        if (target == from) return;
+        _wheelTarget = target;
+        _wheelAt = now;
+        _speaker.RequestVolume(target);
+        SetTrayText(target.ToString(), dimmed: false);
     }
 
     /// <summary>The volume changed: redraw, and pop the flyout up if it came from the speaker.</summary>
@@ -240,7 +273,9 @@ public partial class App : Application
         var connected = state == SpeakerState.Connected && volume is not null;
         var model = DisplayModel;
 
-        SetTrayText(connected ? volume!.Value.Current.ToString() : "–", dimmed: !connected);
+        // Right after a wheel notch, show where it is going rather than the speaker's lagging reply.
+        var wheeling = Environment.TickCount64 - _wheelAt < 1000;
+        SetTrayText(connected ? (wheeling ? _wheelTarget : volume!.Value.Current).ToString() : "–", dimmed: !connected);
 
         _tray.ToolTipText = state switch
         {
@@ -326,6 +361,7 @@ public partial class App : Application
     {
         _exiting = true;
         Log.Write("Exiting.");
+        _wheel?.Dispose();
         _tray.Dispose();
         try
         {
