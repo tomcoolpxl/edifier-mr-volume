@@ -1,23 +1,26 @@
 <#
 .SYNOPSIS
-    Builds the release assets into artifacts\: the portable zip, the per-user installer, and a
-    .sha256 file for each.
+    Builds the release assets for one processor type into artifacts\: the portable zip, the
+    per-user installer, and a .sha256 file for each.
 
 .DESCRIPTION
-    1. dotnet publish: self-contained (.NET and the Windows App SDK runtime included).
-    2. edifier-mr-volume-<tag>-win-x64.zip with README.md and LICENSE beside the exe.
-    3. edifier-mr-volume-<tag>-win-x64-setup.exe from packaging\inno (Inno Setup 6's ISCC).
+    1. dotnet publish: Native AOT, self-contained (the Windows App SDK runtime included).
+    2. edifier-mr-volume-<tag>-win-<arch>.zip with README.md and LICENSE beside the exe.
+    3. edifier-mr-volume-<tag>-win-<arch>-setup.exe from packaging\inno (Inno Setup 6's ISCC).
     4. "<sha256>  <file>" in <file>.sha256 for each, the format Scoop's autoupdate reads.
-    Used by CI and the release workflow; runs the same locally.
+    ARM64 is cross-compiled on an x64 PC; that needs Visual Studio's "C++ ARM64 build tools"
+    (GitHub's Windows images have them). Used by CI and the release workflow; runs the same
+    locally.
 
 .EXAMPLE
     .\tools\package.ps1                 # version from Directory.Build.props
     .\tools\package.ps1 -Tag v1.1.0-rc.1
+    .\tools\package.ps1 -Platform ARM64
 #>
 [CmdletBinding()]
 param(
     [string]$Tag,
-    [ValidateSet('x64')]
+    [ValidateSet('x64', 'ARM64')]
     [string]$Platform = 'x64'
 )
 $ErrorActionPreference = 'Stop'
@@ -30,7 +33,8 @@ if ((($Tag -replace '^v', '') -split '-')[0] -ne $version) {
     throw "Tag $Tag does not match <Version>$version</Version> in Directory.Build.props."
 }
 
-$rid = 'win-x64'
+$arch = if ($Platform -eq 'ARM64') { 'arm64' } else { 'x64' }
+$rid = "win-$arch"
 $artifacts = Join-Path $repo 'artifacts'
 $publish = Join-Path $artifacts "publish\$rid"
 $base = "edifier-mr-volume-$Tag-$rid"
@@ -63,7 +67,7 @@ $iscc = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\I
     Where-Object { Test-Path $_ } | Select-Object -First 1
 if (-not $iscc) { $iscc = (Get-Command iscc -ErrorAction SilentlyContinue).Source }
 if (-not $iscc) { throw 'Inno Setup 6 (ISCC.exe) is needed for the installer.' }
-& $iscc /Q "/DAppVersion=$version" "/DFileTag=$Tag" "/DSourceDir=$publish" "/O$artifacts" `
+& $iscc /Q "/DAppVersion=$version" "/DFileTag=$Tag" "/DArch=$arch" "/DSourceDir=$publish" "/O$artifacts" `
     (Join-Path $repo 'packaging\inno\edifier-mr-volume.iss')
 if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed (exit $LASTEXITCODE)." }
 $setup = Join-Path $artifacts "$base-setup.exe"

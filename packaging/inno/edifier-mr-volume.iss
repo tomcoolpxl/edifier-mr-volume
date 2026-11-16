@@ -2,7 +2,8 @@
 ; self-contained app (what the release zip holds) to %LOCALAPPDATA%\Programs\EdifierMrVolume,
 ; the same folder tools\install.ps1 uses, so either one upgrades the other.
 ;
-;   iscc /DAppVersion=1.1.0 /DSourceDir=..\..\artifacts\publish\win-x64 packaging\inno\edifier-mr-volume.iss
+;   iscc /DAppVersion=1.1.0 /DArch=x64 /DSourceDir=..\..\artifacts\publish\win-x64 packaging\inno\edifier-mr-volume.iss
+;   (/DArch=arm64 with ...\publish\win-arm64 for the ARM64 installer)
 ;
 ; Silent: edifier-mr-volume-vX.Y.Z-win-x64-setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
 ;         [/TASKS="autostart" | /TASKS=""] [/NOLAUNCH] [/LOG="file"]
@@ -11,8 +12,13 @@
 #ifndef AppVersion
   #error Pass /DAppVersion=X.Y.Z
 #endif
+; x64 or arm64: which build the installer holds. The x64 one also installs on Arm PCs
+; (Windows runs it through emulation); the arm64 one only there, natively.
+#ifndef Arch
+  #define Arch "x64"
+#endif
 #ifndef SourceDir
-  #define SourceDir "..\..\artifacts\publish\win-x64"
+  #define SourceDir "..\..\artifacts\publish\win-" + Arch
 #endif
 ; The release tag for the file name (v1.1.0, or v1.1.0-rc.1 for a pre-release);
 ; AppVersion stays the plain X.Y.Z that Windows' version fields need.
@@ -35,8 +41,13 @@ DefaultDirName={localappdata}\Programs\EdifierMrVolume
 DisableDirPage=yes
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
+#if Arch == "arm64"
+ArchitecturesAllowed=arm64
+ArchitecturesInstallIn64BitMode=arm64
+#else
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
+#endif
 ; Windows 10 2004, as the app itself requires.
 MinVersion=10.0.19041
 LicenseFile={#SourceDir}\LICENSE
@@ -44,7 +55,7 @@ SetupIconFile=..\..\src\EdifierMrVolume\Assets\app.ico
 UninstallDisplayIcon={app}\EdifierMrVolume.exe
 UninstallDisplayName=Edifier MR Volume
 OutputDir=..\..\artifacts\installer
-OutputBaseFilename=edifier-mr-volume-{#FileTag}-win-x64-setup
+OutputBaseFilename=edifier-mr-volume-{#FileTag}-win-{#Arch}-setup
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern

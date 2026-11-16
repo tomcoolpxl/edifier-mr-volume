@@ -136,12 +136,15 @@ jobs:
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
 
-      # Also checks that the tag matches <Version> in Directory.Build.props.
-      - name: Build the zip, the installer and their checksums
+      # Also checks that the tag matches <Version> in Directory.Build.props. ARM64 is
+      # cross-compiled on this x64 runner; the CI gate started and installed it on Windows on Arm.
+      - name: Build the zips, the installers and their checksums (x64 and ARM64)
         shell: pwsh
         env:
           TAG: ${{ steps.tag.outputs.tag }}
-        run: ./tools/package.ps1 -Tag $env:TAG
+        run: |
+          ./tools/package.ps1 -Tag $env:TAG -Platform x64
+          ./tools/package.ps1 -Tag $env:TAG -Platform ARM64
 
       - name: Write the release notes
         shell: pwsh
@@ -164,3 +167,7 @@ jobs:
             artifacts/edifier-mr-volume-*-win-x64.zip.sha256
             artifacts/edifier-mr-volume-*-win-x64-setup.exe
             artifacts/edifier-mr-volume-*-win-x64-setup.exe.sha256
+            artifacts/edifier-mr-volume-*-win-arm64.zip
+            artifacts/edifier-mr-volume-*-win-arm64.zip.sha256
+            artifacts/edifier-mr-volume-*-win-arm64-setup.exe
+            artifacts/edifier-mr-volume-*-win-arm64-setup.exe.sha256

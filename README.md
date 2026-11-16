@@ -70,24 +70,29 @@ Built with WinUI 3 (Windows App SDK 2.6), .NET 10 and [H.NotifyIcon](https://git
 
 ## Install
 
-Windows 10 2004 or later, x64. No pairing in Windows Bluetooth settings is needed.
+Windows 10 2004 or later, on an x64 PC or (from the next release on) natively on an Arm PC
+such as a Snapdragon Copilot+ PC: take the `win-x64` files or the `win-arm64` ones. No pairing in
+Windows Bluetooth settings is needed.
 
-**Installer** (from v1.0.1 on): download `edifier-mr-volume-vX.Y.Z-win-x64-setup.exe` from
+**Installer** (from v1.0.1 on): download `edifier-mr-volume-vX.Y.Z-win-x64-setup.exe` (or
+`-win-arm64-setup.exe`) from
 [Releases](https://github.com/tomcoolpxl/edifier-mr-volume/releases) and run it. Per user, no
 admin: it installs to `%LOCALAPPDATA%\Programs\EdifierMrVolume`, adds an **Edifier MR Volume**
 Start menu shortcut, can start the app when you sign in, upgrades an installed copy in place
 (closing it cleanly first) and uninstalls from Windows' **Installed apps**.
 
-**Portable**: download `edifier-mr-volume-vX.Y.Z-win-x64.zip`, unpack it anywhere and run
-`EdifierMrVolume.exe`. Self-contained (.NET and the Windows App SDK runtime included).
+**Portable**: download `edifier-mr-volume-vX.Y.Z-win-x64.zip` (or `-win-arm64.zip`), unpack it
+anywhere and run `EdifierMrVolume.exe`. Self-contained: compiled to native code (Native AOT), with
+the Windows App SDK runtime included, so nothing else needs installing.
 
-**From source** (needs the .NET 10 SDK):
+**From source** (needs the .NET SDK and Visual Studio's "Desktop development with C++"
+workload, which Native AOT uses to link):
 
 ```powershell
 .\tools\install.ps1
 ```
 
-This publishes a self-contained Release build (about 240 MB), installs it to
+This publishes a Native AOT Release build (about 175 MB), installs it to
 `%LOCALAPPDATA%\Programs\EdifierMrVolume`, adds an **Edifier MR Volume** Start menu shortcut and
 starts it. Rerun it after pulling changes: it closes the running copy cleanly, so the speaker
 reconnects within seconds. Then select **Start with Windows** in the right-click menu.
