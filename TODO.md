@@ -248,7 +248,7 @@ guidelines"):
       buttons up to 5, so "Close after" keeps them. (3) Destructive actions need a confirmation:
       applies to the power-off button, a question for the owner. (4) Test in a High Contrast
       theme: added to Verify.*
-- [ ] **Full UX and UI review, after all the UI work is done** (owner, 2026-11-16: "I want you to
+- [x] **Full UX and UI review, after all the UI work is done** (owner, 2026-11-16: "I want you to
       do a UX and UI review with whatever skill is needed ... I tried to plan this before with you,
       and you disregarded my command ... When ... you're done with the UI work, I want you to do
       this. Make a note of this"). Use Microsoft's `winui` plugin skills (`winui-design`,
@@ -256,6 +256,18 @@ guidelines"):
       design-critique, accessibility-review and ux-copy skills and Microsoft's app-settings
       guidelines; cover the tray icon, tooltip, menu, panel, settings, equalizer and every text;
       report findings with sources before changing anything.
+      *Report written 2026-11-16 night: [docs/UX-REVIEW.md](docs/UX-REVIEW.md) (code at
+      `ebff015`, with winui-design, winui-code-review, design-critique, accessibility-review and
+      ux-copy; sources linked; nothing changed in the app). 23 findings: 2 high (the
+      notification-area icon can't be used from the keyboard; the power button is small and next
+      to the gear, with no way back from the PC), 8 medium (focus lost on view switches; a nudged
+      preset band silently replaces the saved Custom curve; "Custom" means two things; digits
+      ignore contrast themes; connection problems as small grey text; first-run hint wording;
+      sound mode without a label; header crowding at large text), 13 low. Not checked: the main
+      panel on screen (display off), Narrator, contrast themes, winui-ui-testing (needs the
+      running app). **Owner to pick** which findings to fix; the review didn't change anything.
+      Done after the review: the panel's power button and the lighter connection don't change
+      its findings.*
 - [ ] Decide whether to install Microsoft's WinApp CLI, which `winui-design` uses for its sample
       search (`winapp find-ui`); the skill works without it.
 - [x] **Rescan**: never offered. Reconnect already rescans before connecting; tell the owner and let
