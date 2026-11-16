@@ -1,9 +1,12 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Runtime.InteropServices;
 using EdifierMrVolume.Core;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
+using CommunityToolkit.WinUI.Controls;
 using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
@@ -13,6 +16,15 @@ using Windows.Graphics;
 using Windows.System;
 
 namespace EdifierMrVolume;
+
+/// <summary>What the panel can ask the app to do.</summary>
+internal sealed record WindowCommands(
+    Func<Task> Reconnect,
+    Func<Task> PowerOff,
+    Func<bool, Task> SetConnected,
+    Action<bool> SetAutostart,
+    Action Exit,
+    Action SettingsChanged);
 
 /// <summary>
 /// Small panel next to the taskbar: status, mute, slider and the current level, with a settings,
@@ -25,15 +37,16 @@ public sealed partial class VolumeWindow : Window
     private const int MainWidthDip = 340;
     private const int SettingsWidthDip = 400;
     private const int MarginDip = 12;
+    /// <summary>Hidden for less than this, the panel reopens where it was (review 2.22).</summary>
+    private const long KeepViewMs = 60_000;
+    private const string NotConnectedYet = "Available once the app is connected to the speaker.";
     private const string RepoUrl = "https://github.com/tomcoolpxl/edifier-mr-volume";
     private const string MuteGlyph = "";
     private const string MutedGlyph = "";
 
     private readonly SpeakerConnection _speaker;
     private readonly AppSettings _settings;
-    private readonly Func<Task> _reconnect;
-    private readonly Func<Task> _powerOff;
-    private readonly Action _settingsChanged;
+    private readonly WindowCommands _commands;
     private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _peekTimer;
     private bool _updatingFromSpeaker;
     private bool _loadingSettings;
@@ -44,19 +57,23 @@ public sealed partial class VolumeWindow : Window
     private int? _levelBeforeMute;
     private long _userEditUntil;
     private long _hiddenAt;
+    private bool _updatingSwitches;
+    private bool _reconnecting;
 
-    internal VolumeWindow(SpeakerConnection speaker, AppSettings settings, Func<Task> reconnect,
-        Func<Task> powerOff, Action settingsChanged)
+    /// <summary>The panel was hidden (light dismiss, Esc, or the icon).</summary>
+    public event EventHandler? Hidden;
+
+    internal VolumeWindow(SpeakerConnection speaker, AppSettings settings, WindowCommands commands)
     {
         _speaker = speaker;
         _settings = settings;
-        _reconnect = reconnect;
-        _powerOff = powerOff;
-        _settingsChanged = settingsChanged;
+        _commands = commands;
         InitializeComponent();
 
         foreach (var preset in EqPresets.All) PresetBox.Items.Add(preset.Name);
-        PresetBox.Items.Add(EqPresets.CustomName);
+        PresetBox.Items.Add(EqPresets.CustomLabel);
+        foreach (var choice in RoomPresets.Bass) BassBox.Items.Add(choice.Name);
+        FirstRunBar.Message = FirstRunMessage();
 
         SystemBackdrop = new DesktopAcrylicBackdrop();
         AppWindow.IsShownInSwitchers = false;
@@ -98,28 +115,35 @@ public sealed partial class VolumeWindow : Window
 
     // ── Showing, hiding and placing ────────────────────────────────────
 
-    public void Toggle()
+    /// <param name="keyboard">Opened from the keyboard (Win+B, then Enter): show the focus rectangle.</param>
+    public void Toggle(bool keyboard = false)
     {
         if (AppWindow.IsVisible)
         {
             // A click while it is only peeking keeps it open for real.
-            if (_peeking) ShowFlyout();
+            if (_peeking) ShowFlyout(keyboard);
             else HideFlyout();
         }
         // A click on the icon first deactivates (and hides) the open panel; don't reopen it.
         else if (Environment.TickCount64 - _hiddenAt > 300)
         {
-            ShowFlyout();
+            ShowFlyout(keyboard);
         }
     }
 
-    public void ShowFlyout()
+    public void ShowFlyout(bool keyboard = false)
     {
         StopPeeking();
+        // Back within a minute (after Open log, a link, a click on the taskbar): reopen where it
+        // was, settings and open expanders included. Later, start from the volume again.
+        if (_settingsOpen && Environment.TickCount64 - _hiddenAt > KeepViewMs) ShowMainView(focus: false);
         Place();
         AppWindow.Show();
         Activate();
-        if (!_settingsOpen) VolumeSlider.Focus(FocusState.Programmatic);
+        var focus = keyboard ? FocusState.Keyboard : FocusState.Programmatic;
+        if (_settingsOpen) BackButton.Focus(focus);
+        else if (VolumeSlider.IsEnabled) VolumeSlider.Focus(focus);
+        else SettingsButton.Focus(focus);
         // Measure again once the content is laid out for real.
         DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, Place);
     }
@@ -134,7 +158,7 @@ public sealed partial class VolumeWindow : Window
         if (!AppWindow.IsVisible)
         {
             if (NativeMethods.IsFullScreenAppRunning()) return;
-            ShowMainView();
+            ShowMainView(focus: false);
             Place();
             AppWindow.Show(activateWindow: false);
             _peeking = true;
@@ -150,7 +174,7 @@ public sealed partial class VolumeWindow : Window
         AppWindow.Hide();
         _hiddenAt = Environment.TickCount64;
         if (_firstRunShown) MarkFirstRunDone();
-        ShowMainView(); // next time it opens on the volume
+        Hidden?.Invoke(this, EventArgs.Empty);
     }
 
     public void CloseForExit()
@@ -160,12 +184,23 @@ public sealed partial class VolumeWindow : Window
         Close();
     }
 
-    /// <summary>The one-time hint that Windows 11 may hide the notification-area icon.</summary>
+    /// <summary>The one-time hint that Windows may hide the notification-area icon.</summary>
     public void ShowFirstRunHint()
     {
         _firstRunShown = true;
         FirstRunBar.IsOpen = true;
     }
+
+    /// <summary>Where Windows keeps the switch for the icon: Windows 11 (build 22000+) or 10.</summary>
+    private static string FirstRunMessage()
+    {
+        var where = Environment.OSVersion.Version.Build >= 22000
+            ? "Settings › Personalization › Taskbar › Other system tray icons › Edifier MR Volume"
+            : "Settings › Personalization › Taskbar › Select which icons appear on the taskbar";
+        return $"If you don't see the number, Windows hid it. Turn it on in {where}. Scroll over the number to change the volume.";
+    }
+
+    private void TaskbarSettings_Click(object sender, RoutedEventArgs e) => Open("ms-settings:taskbar");
 
     private void FirstRunBar_Closed(InfoBar sender, InfoBarClosedEventArgs args)
     {
@@ -244,13 +279,15 @@ public sealed partial class VolumeWindow : Window
         }
     }
 
-    private void ShowMainView()
+    /// <param name="focus">Move focus to the gear, which opened settings (review 2.3).</param>
+    private void ShowMainView(bool focus = true)
     {
         if (!_settingsOpen) return;
         _settingsOpen = false;
         SettingsView.Visibility = Visibility.Collapsed;
         MainView.Visibility = Visibility.Visible;
         if (AppWindow.IsVisible) Place();
+        if (focus && AppWindow.IsVisible) SettingsButton.Focus(FocusState.Programmatic);
     }
 
     private void ShowSettingsView()
@@ -260,6 +297,8 @@ public sealed partial class VolumeWindow : Window
         MainView.Visibility = Visibility.Collapsed;
         SettingsView.Visibility = Visibility.Visible;
         Place();
+        // Focus into the new view, or it is lost with the collapsed gear (review 2.3).
+        BackButton.Focus(FocusState.Programmatic);
         // Measure again once the newly shown view is laid out for real.
         DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, Place);
     }
@@ -280,29 +319,26 @@ public sealed partial class VolumeWindow : Window
     // ── Volume ─────────────────────────────────────────────────────────
 
     public void Update(SpeakerState state, VolumeLevel? volume, string model, string? detail,
-        EdifierProtocol.SoundState? sound = null, EdifierProtocol.EqCurve? eq = null)
+        EdifierProtocol.SoundState? sound, EdifierProtocol.EqCurve? eq, bool running, bool autostart)
     {
         var connected = state == SpeakerState.Connected;
         UpdateSoundMode(connected ? sound : null);
         UpdateEqualizer(connected ? eq : null);
+        UpdateRoom(connected ? sound : null);
         UpdatePowerSaving(connected ? _speaker.PowerSaving : null);
+        UpdateSwitches(running, autostart);
         PowerButton.IsEnabled = connected && !_speaker.SwitchedOff;
         ModelText.Text = model;
-        StatusText.Text = state switch
+        var status = state switch
         {
             SpeakerState.Connected => "",
             SpeakerState.Connecting => "Connecting…",
-            SpeakerState.Searching => "Looking for speaker…",
-            _ => "Disconnected",
+            SpeakerState.Searching => "Looking for the speaker…",
+            _ => "Released",
         };
-        SetMessage(state switch
-        {
-            // The reason it isn't connected: the last error, or what to check after a while.
-            SpeakerState.Searching => detail,
-            SpeakerState.Stopped =>
-                "Released, so another device such as the ConneX app can connect. Right-click the number and tick Connected to speaker to reconnect.",
-            _ => null,
-        });
+        StatusText.Text = status;
+        StatusText.Visibility = status.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+        SetConnectionBar(state, detail);
 
         var usable = state == SpeakerState.Connected && volume is not null;
         VolumeSlider.IsEnabled = usable;
@@ -329,22 +365,95 @@ public sealed partial class VolumeWindow : Window
         UpdateMuteButton(v.Current);
     }
 
+    // ── Connection problems (review 2.7) ───────────────────────────────
+
+    private enum BarAction { None, Reconnect, BluetoothSettings, Connect }
+
+    private sealed record BarContent(InfoBarSeverity Severity, string Title, string Message, BarAction Action);
+
+    private BarContent? _bar;
+
+    /// <summary>Why it isn't connected, in plain words, with the button that helps; the raw text stays in Diagnostics.</summary>
+    private void SetConnectionBar(SpeakerState state, string? detail)
+    {
+        var bar = state switch
+        {
+            SpeakerState.Stopped => new BarContent(InfoBarSeverity.Informational, "Released",
+                "Another device, such as the ConneX app, can connect to the speaker now.", BarAction.Connect),
+            SpeakerState.Searching when _speaker.SwitchedOff => new BarContent(InfoBarSeverity.Informational,
+                "Speakers turned off", "Turn them on with their power button. The app reconnects by itself.", BarAction.None),
+            SpeakerState.Searching when detail is not null => Describe(detail),
+            _ => null,
+        };
+        if (bar == _bar) return;
+        _bar = bar;
+        // Narrator doesn't announce changed content, so close the bar before showing new content.
+        ConnectionBar.IsOpen = false;
+        if (bar is not null)
+        {
+            ConnectionBar.Severity = bar.Severity;
+            ConnectionBar.Title = bar.Title;
+            ConnectionBar.Message = bar.Message;
+            ConnectionBar.ActionButton = bar.Action switch
+            {
+                BarAction.Reconnect => BarButton("Reconnect", ReconnectButton_Click),
+                BarAction.BluetoothSettings => BarButton("Bluetooth settings", (_, _) => Open("ms-settings:bluetooth")),
+                BarAction.Connect => BarButton("Connect", (_, _) => _ = _commands.SetConnected(true)),
+                _ => null,
+            };
+            ConnectionBar.IsOpen = true;
+        }
+        if (AppWindow.IsVisible) Place();
+    }
+
+    private static Button BarButton(string text, RoutedEventHandler click)
+    {
+        var button = new Button { Content = text };
+        button.Click += click;
+        return button;
+    }
+
+    /// <summary>The connection's error texts, in plain words.</summary>
+    private static BarContent Describe(string detail)
+    {
+        if (detail == SpeakerConnection.NotFoundHint)
+            return new(InfoBarSeverity.Warning, "Speaker not found",
+                "Are the speakers on? Only one device can control them at a time, so close EDIFIER ConneX on your phone.",
+                BarAction.Reconnect);
+        if (detail.StartsWith("Bluetooth is off", StringComparison.Ordinal))
+            return new(InfoBarSeverity.Warning, "Bluetooth is off",
+                "Turn on Bluetooth, and the app connects by itself.", BarAction.BluetoothSettings);
+        if (detail.Contains("out of reach", StringComparison.Ordinal))
+            return new(InfoBarSeverity.Warning, "Can't reach the speaker",
+                "It may be too far away, or another device such as the ConneX app holds its control link.",
+                BarAction.Reconnect);
+        if (detail.Contains("stopped answering", StringComparison.Ordinal)
+            || detail.StartsWith("Write to speaker failed", StringComparison.Ordinal))
+            return new(InfoBarSeverity.Warning, "The speaker stopped answering", "The app keeps trying.",
+                BarAction.Reconnect);
+        return new(InfoBarSeverity.Warning, "Can't connect yet",
+            "The app keeps trying. The details are in Settings › Connection › Diagnostics.", BarAction.Reconnect);
+    }
+
+    // ── Sound mode ─────────────────────────────────────────────────────
+
     private bool _updatingMode;
 
     private void UpdateSoundMode(EdifierProtocol.SoundState? sound)
     {
         var visibility = sound is null ? Visibility.Collapsed : Visibility.Visible;
-        if (ModeBar.Visibility != visibility)
-        {
-            ModeBar.Visibility = visibility;
-        }
-        if (sound is null || sound.Mode < 0 || sound.Mode >= ModeBar.Items.Count) return;
-        var item = ModeBar.Items[sound.Mode];
-        if (ReferenceEquals(ModeBar.SelectedItem, item)) return;
+        if (ModeRow.Visibility != visibility) ModeRow.Visibility = visibility;
+        if (sound is null) return;
+        // A mode this app doesn't know: show none, and don't let focus or the arrow keys pick
+        // one and send it (review 2.9).
+        var known = sound.Mode >= 0 && sound.Mode < ModeBar.Items.Count;
+        ModeBar.IsEnabled = known;
+        var index = known ? sound.Mode : -1;
+        if (ModeBar.SelectedIndex == index) return;
         _updatingMode = true;
         try
         {
-            ModeBar.SelectedItem = item;
+            ModeBar.SelectedIndex = index;
         }
         finally
         {
@@ -352,36 +461,33 @@ public sealed partial class VolumeWindow : Window
         }
     }
 
-    private void ModeBar_SelectionChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+    private void ModeBar_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_updatingMode || sender.SelectedItem is not { Tag: string tag } || !int.TryParse(tag, out var mode)) return;
+        if (_updatingMode || ModeBar.SelectedItem is not SegmentedItem { Tag: string tag } || !int.TryParse(tag, out var mode)) return;
         if (_speaker.RequestSoundMode(mode))
             Log.Write($"Sound mode -> {EdifierProtocol.SoundModeNames[mode]}");
     }
 
     private async void PowerButton_Click(object sender, RoutedEventArgs e)
     {
+        // The button disables itself; keep keyboard focus on something that stays (review 2.3).
+        SettingsButton.Focus(FocusState.Programmatic);
         PowerButton.IsEnabled = false;
-        await _powerOff();
-    }
-
-    private void SetMessage(string? text)
-    {
-        var visibility = string.IsNullOrEmpty(text) ? Visibility.Collapsed : Visibility.Visible;
-        if (MessageText.Text == (text ?? "") && MessageText.Visibility == visibility) return;
-        MessageText.Text = text ?? "";
-        MessageText.Visibility = visibility;
-        if (AppWindow.IsVisible) Place();
+        await _commands.PowerOff();
     }
 
     private void VolumeSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
     {
         var level = (int)Math.Round(e.NewValue);
-        if (!_updatingFromSpeaker && VolumeSlider.IsEnabled
-            && _settings.EffectiveVolumeLimit is { } limit && level > limit)
+        if (!_updatingFromSpeaker && VolumeSlider.IsEnabled && _settings.EffectiveVolumeLimit is { } limit && level > limit)
         {
-            VolumeSlider.Value = limit; // comes back here with the limit
-            return;
+            // Never above the limit, but down one step at a time from where the knob put it.
+            var allowed = VolumeRules.Clamp(level, _speaker.Volume?.Current ?? 0, (int)VolumeSlider.Maximum, limit);
+            if (allowed != level)
+            {
+                VolumeSlider.Value = allowed; // comes back here with the allowed level
+                return;
+            }
         }
         VolumeText.Text = level.ToString();
         UpdateMuteButton(level);
@@ -404,15 +510,15 @@ public sealed partial class VolumeWindow : Window
             VolumeSlider.Value = _levelBeforeMute ?? 10;
             _levelBeforeMute = null;
         }
+        UpdateMuteButton((int)Math.Round(VolumeSlider.Value));
     }
 
+    /// <summary>Checked while muted; the name stays "Mute" and Narrator reads the state (review 2.12).</summary>
     private void UpdateMuteButton(int level)
     {
         var muted = level == 0;
         MuteIcon.Glyph = muted ? MutedGlyph : MuteGlyph;
-        var label = muted ? "Unmute" : "Mute";
-        AutomationProperties.SetName(MuteButton, label);
-        ToolTipService.SetToolTip(MuteButton, label);
+        if (MuteButton.IsChecked != muted) MuteButton.IsChecked = muted;
     }
 
     private void MainView_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
@@ -444,8 +550,7 @@ public sealed partial class VolumeWindow : Window
         try
         {
             ShowOnKnobSwitch.IsOn = _settings.ShowOnKnobTurn;
-            var selected = _settings.HideAfterSeconds switch { 2 => Hide2, 3 => Hide3, 5 => Hide5, _ => Hide1 };
-            selected.IsChecked = true;
+            HideAfterChoice.SelectedIndex = Math.Max(0, Array.IndexOf(AppSettings.HideChoices, _settings.HideAfterSeconds));
             SetHideAfterEnabled(_settings.ShowOnKnobTurn);
 
             LimitSwitch.IsOn = _settings.VolumeLimitEnabled;
@@ -467,7 +572,7 @@ public sealed partial class VolumeWindow : Window
     private void SaveSettings(string what)
     {
         _settings.Save();
-        _settingsChanged();
+        _commands.SettingsChanged();
         Log.Write($"Setting: {what}");
     }
 
@@ -483,33 +588,41 @@ public sealed partial class VolumeWindow : Window
     private void SetHideAfterEnabled(bool enabled)
     {
         HideAfterCard.IsEnabled = enabled;
-        HideAfterCard.Description = enabled ? null! : "Switch on Auto-open panel to choose.";
+        HideAfterCard.Description = enabled ? null! : "Turn on Auto-open panel to choose.";
     }
 
+    /// <summary>The descriptions name the level while the switch is on (review 2.13).</summary>
     private void SetLimitEnabled(bool enabled)
     {
         LimitCard.IsEnabled = enabled;
-        LimitCard.Description = enabled ? null! : "Switch on Volume limit to choose.";
+        LimitCard.Description = enabled ? null! : "Turn on Volume limit to choose.";
+        LimitExpander.Description = enabled
+            ? $"The app won't set the volume above {_settings.VolumeLimit}. The knob on the speaker can still go higher."
+            : "The app won't set the volume above a level you choose. The knob on the speaker can still go higher.";
     }
 
     private void SetStartEnabled(bool enabled)
     {
         StartCard.IsEnabled = enabled;
-        StartCard.Description = enabled ? null! : "Switch on Start volume to choose.";
+        StartCard.Description = enabled ? null! : "Turn on Start volume to choose.";
+        StartExpander.Description = enabled
+            ? $"Sets the volume to {_settings.StartVolume} whenever the app connects to the speaker, for example at sign-in."
+            : "Sets a level whenever the app connects to the speaker, for example at sign-in.";
     }
 
-    private void HideAfter_Checked(object sender, RoutedEventArgs e)
+    private void HideAfter_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_loadingSettings || sender is not RadioButton { Tag: string tag } || !int.TryParse(tag, out var seconds)) return;
-        _settings.HideAfterSeconds = seconds;
-        SaveSettings($"auto-opened panel closes after {seconds} s");
+        var index = HideAfterChoice.SelectedIndex;
+        if (_loadingSettings || index < 0 || index >= AppSettings.HideChoices.Length) return;
+        _settings.HideAfterSeconds = AppSettings.HideChoices[index];
+        SaveSettings($"auto-opened panel closes after {_settings.HideAfterSeconds} s");
     }
 
     private void LimitSwitch_Toggled(object sender, RoutedEventArgs e)
     {
+        if (!_loadingSettings) _settings.VolumeLimitEnabled = LimitSwitch.IsOn;
         SetLimitEnabled(LimitSwitch.IsOn);
         if (_loadingSettings) return;
-        _settings.VolumeLimitEnabled = LimitSwitch.IsOn;
         SaveSettings($"volume limit {(_settings.VolumeLimitEnabled ? $"on, {_settings.VolumeLimit}" : "off")}");
     }
 
@@ -517,33 +630,42 @@ public sealed partial class VolumeWindow : Window
     {
         if (_loadingSettings || double.IsNaN(args.NewValue)) return;
         _settings.VolumeLimit = (int)Math.Clamp(Math.Round(args.NewValue), 1, 30);
+        SetLimitEnabled(_settings.VolumeLimitEnabled);
         SaveSettings($"volume limit {_settings.VolumeLimit}");
     }
 
     private void StartSwitch_Toggled(object sender, RoutedEventArgs e)
     {
+        if (!_loadingSettings) _settings.StartVolumeEnabled = StartSwitch.IsOn;
         SetStartEnabled(StartSwitch.IsOn);
         if (_loadingSettings) return;
-        _settings.StartVolumeEnabled = StartSwitch.IsOn;
         SaveSettings($"start volume {(_settings.StartVolumeEnabled ? $"on, {_settings.StartVolume}" : "off")}");
+    }
+
+    private void StartBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
+    {
+        if (_loadingSettings || double.IsNaN(args.NewValue)) return;
+        _settings.StartVolume = (int)Math.Clamp(Math.Round(args.NewValue), 0, 30);
+        SetStartEnabled(_settings.StartVolumeEnabled);
+        SaveSettings($"start volume {_settings.StartVolume}");
     }
 
     private void SleepOffSwitch_Toggled(object sender, RoutedEventArgs e)
     {
         if (_loadingSettings) return;
         _settings.PowerOffOnSleep = SleepOffSwitch.IsOn;
-        SaveSettings($"switch off when the PC sleeps = {_settings.PowerOffOnSleep}");
+        SaveSettings($"turn off when the PC sleeps = {_settings.PowerOffOnSleep}");
     }
 
     private const string PowerSavingDescription =
-        "The speakers go to standby after 15 minutes without sound. Switched off, they use more power.";
+        "After 15 minutes without sound, the speakers go to standby. When this is off, they stay on and use more power. The knob changes this setting too.";
     private bool _updatingPowerSaving;
 
     /// <summary>Shows the speaker's power saving setting; disabled (and says why) until it is known.</summary>
     private void UpdatePowerSaving(bool? on)
     {
         PowerSavingCard.IsEnabled = on is not null;
-        PowerSavingCard.Description = on is null ? "Available once the app is connected to the speaker." : PowerSavingDescription;
+        PowerSavingCard.Description = on is null ? NotConnectedYet : PowerSavingDescription;
         if (on is not { } value || PowerSavingSwitch.IsOn == value) return;
         _updatingPowerSaving = true;
         try
@@ -563,16 +685,38 @@ public sealed partial class VolumeWindow : Window
             Log.Write($"Power saving -> {(PowerSavingSwitch.IsOn ? "on" : "off")}");
     }
 
-    private void StartBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
+    /// <summary>Connect to speaker and Start with Windows, as the app has them.</summary>
+    private void UpdateSwitches(bool running, bool autostart)
     {
-        if (_loadingSettings || double.IsNaN(args.NewValue)) return;
-        _settings.StartVolume = (int)Math.Clamp(Math.Round(args.NewValue), 0, 30);
-        SaveSettings($"start volume {_settings.StartVolume}");
+        _updatingSwitches = true;
+        try
+        {
+            if (ConnectSwitch.IsOn != running) ConnectSwitch.IsOn = running;
+            if (AutostartSwitch.IsOn != autostart) AutostartSwitch.IsOn = autostart;
+        }
+        finally
+        {
+            _updatingSwitches = false;
+        }
     }
+
+    private void ConnectSwitch_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (!_updatingSwitches) _ = _commands.SetConnected(ConnectSwitch.IsOn);
+    }
+
+    private void AutostartSwitch_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (!_updatingSwitches) _commands.SetAutostart(AutostartSwitch.IsOn);
+    }
+
+    private void ExitButton_Click(object sender, RoutedEventArgs e) => _commands.Exit();
 
     // ── Equalizer ──────────────────────────────────────────────────────
 
-    private const string EqDescription = "Used in Custom mode.";
+    private const string EqDescription = "Heard in Custom mode.";
+    private const string BandsUnlocked = "Steps up or down from flat (0).";
+    private const string BandsLocked = "Steps up or down from flat (0). Choose Your curve to change the bands.";
     private readonly List<(Slider Slider, TextBlock Value)> _bandRows = [];
     private bool _updatingEq;
     /// <summary>Steps this app asked for and the speaker hasn't reported yet; shown meanwhile.</summary>
@@ -583,10 +727,10 @@ public sealed partial class VolumeWindow : Window
     {
         var usable = eq is not null;
         PresetBox.IsEnabled = usable;
-        EqBandsCard.IsEnabled = usable;
-        EqExpander.Description = usable ? EqDescription : "Available once the app is connected to the speaker.";
+        EqExpander.Description = usable ? EqDescription : NotConnectedYet;
         if (eq is null)
         {
+            EqBandsCard.IsEnabled = false;
             _eqTarget = null;
             return;
         }
@@ -614,18 +758,27 @@ public sealed partial class VolumeWindow : Window
         ShowEq(choice, steps);
     }
 
-    /// <summary>Shows a choice and curve without sending anything to the speaker.</summary>
+    /// <summary>
+    /// Shows a choice and curve without sending anything to the speaker. The bands can be moved
+    /// only for Your curve, so a preset can't overwrite it by accident (owner, 2026-11-16).
+    /// </summary>
     private void ShowEq(string choice, int[] steps)
     {
         _updatingEq = true;
         try
         {
-            if (!Equals(PresetBox.SelectedItem, choice)) PresetBox.SelectedItem = choice;
+            var label = EqPresets.Label(choice);
+            if (!Equals(PresetBox.SelectedItem, label)) PresetBox.SelectedItem = label;
+            var own = choice == EqPresets.CustomName;
+            EqBandsCard.IsEnabled = own;
+            EqBandsCard.Description = own ? BandsUnlocked : BandsLocked;
             for (var i = 0; i < _bandRows.Count && i < steps.Length; i++)
             {
                 _bandRows[i].Slider.Value = steps[i];
                 _bandRows[i].Value.Text = StepsLabel(steps[i]);
             }
+            ToolTipService.SetToolTip(ModeCustom,
+                $"Plays the equalizer curve ({label}). Change it in Settings › Sound. White light on the speaker.");
         }
         finally
         {
@@ -633,7 +786,7 @@ public sealed partial class VolumeWindow : Window
         }
     }
 
-    /// <summary>One row per band the speaker reports: frequency, slider, steps.</summary>
+    /// <summary>A scale row, then one row per band the speaker reports: frequency, slider, steps.</summary>
     private void BuildBandRows(EdifierProtocol.EqCurve eq)
     {
         if (_bandRows.Count == eq.Bands.Count) return;
@@ -641,8 +794,20 @@ public sealed partial class VolumeWindow : Window
         EqBandsGrid.RowDefinitions.Clear();
         _bandRows.Clear();
         var caption = (Style)Application.Current.Resources["CaptionTextBlockStyle"];
+
+        // Where flat is, and which way is a cut (review 2.16).
+        EqBandsGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        var scale = new Grid();
+        scale.Children.Add(new TextBlock { Text = $"Cut {StepsLabel(-eq.Range)}", Style = caption });
+        scale.Children.Add(new TextBlock { Text = "0", Style = caption, HorizontalAlignment = HorizontalAlignment.Center });
+        scale.Children.Add(new TextBlock { Text = $"{StepsLabel(eq.Range)} Boost", Style = caption, HorizontalAlignment = HorizontalAlignment.Right });
+        AutomationProperties.SetAccessibilityView(scale, AccessibilityView.Raw);
+        Grid.SetColumn(scale, 1);
+        EqBandsGrid.Children.Add(scale);
+
         for (var i = 0; i < eq.Bands.Count; i++)
         {
+            var row = i + 1;
             EqBandsGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             var name = FrequencyLabel(eq.Bands[i].Frequency);
             var label = new TextBlock { Text = name, Style = caption, VerticalAlignment = VerticalAlignment.Center };
@@ -660,6 +825,7 @@ public sealed partial class VolumeWindow : Window
                 Tag = i,
             };
             AutomationProperties.SetName(slider, name);
+            AutomationProperties.SetAutomationId(slider, $"EqBand{i}");
             slider.ValueChanged += EqSlider_ValueChanged;
             var value = new TextBlock
             {
@@ -667,10 +833,10 @@ public sealed partial class VolumeWindow : Window
                 TextAlignment = TextAlignment.Right,
                 VerticalAlignment = VerticalAlignment.Center,
             };
-            Grid.SetRow(label, i);
-            Grid.SetRow(slider, i);
+            Grid.SetRow(label, row);
+            Grid.SetRow(slider, row);
             Grid.SetColumn(slider, 1);
-            Grid.SetRow(value, i);
+            Grid.SetRow(value, row);
             Grid.SetColumn(value, 2);
             EqBandsGrid.Children.Add(label);
             EqBandsGrid.Children.Add(slider);
@@ -682,17 +848,18 @@ public sealed partial class VolumeWindow : Window
     private static string FrequencyLabel(int hz) => hz >= 1000 ? $"{hz / 1000.0:0.#} kHz" : $"{hz} Hz";
 
     // A real minus sign, as Windows' own number displays use.
-    private static string StepsLabel(int steps) => steps switch { > 0 => $"+{steps}", < 0 => $"\u2212{-steps}", _ => "0" };
+    private static string StepsLabel(int steps) => steps switch { > 0 => $"+{steps}", < 0 => $"−{-steps}", _ => "0" };
 
     private void PresetBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_updatingEq || PresetBox.SelectedItem is not string choice || _speaker.Equalizer is not { } eq) return;
+        if (_updatingEq || PresetBox.SelectedItem is not string label || _speaker.Equalizer is not { } eq) return;
+        var choice = EqPresets.ChoiceFor(label);
         var steps = EqPresets.Find(choice) is { } preset ? preset.StepsFor(eq)
             : _settings.CustomEq is { } custom && custom.Length == eq.Bands.Count ? custom
             : eq.Steps;
         _settings.EqChoice = choice;
         _settings.Save();
-        Log.Write($"Equalizer -> {choice}");
+        Log.Write($"Equalizer -> {label}");
         ApplyEq(choice, steps);
     }
 
@@ -701,9 +868,9 @@ public sealed partial class VolumeWindow : Window
         if (sender is not Slider { Tag: int band }) return;
         var step = (int)Math.Round(e.NewValue);
         _bandRows[band].Value.Text = StepsLabel(step);
-        if (_updatingEq || _speaker.Equalizer is null) return;
+        // Only Your curve's bands can be moved (they're locked on a preset).
+        if (_updatingEq || _speaker.Equalizer is null || _settings.EqChoice != EqPresets.CustomName) return;
         var steps = _bandRows.Select(r => (int)Math.Round(r.Slider.Value)).ToArray();
-        _settings.EqChoice = EqPresets.CustomName;
         _settings.CustomEq = steps;
         _settings.Save();
         ApplyEq(EqPresets.CustomName, steps);
@@ -719,17 +886,95 @@ public sealed partial class VolumeWindow : Window
         if (_speaker.SoundMode is { Mode: not 2 }) _speaker.RequestSoundMode(2);
     }
 
+    // ── Room tuning ────────────────────────────────────────────────────
+
+    private bool _updatingRoom;
+    /// <summary>Tuning this app asked for and the speaker hasn't reported yet; shown meanwhile.</summary>
+    private EdifierProtocol.RoomTuning? _roomTarget;
+    private long _roomTargetUntil;
+
+    /// <summary>Shows the speaker's room tuning; disabled (and says why) until it is known.</summary>
+    private void UpdateRoom(EdifierProtocol.SoundState? sound)
+    {
+        EdifierProtocol.RoomTuning? tuning = null;
+        if (sound is not null && EdifierProtocol.TryDecodeRoomTuning(sound, out var decoded)) tuning = decoded;
+        var usable = tuning is not null;
+        WallCard.IsEnabled = usable;
+        BassCard.IsEnabled = usable;
+        DeskCard.IsEnabled = usable;
+        RoomExpander.Description = usable ? "Adjusts the bass to where the speakers stand."
+            : sound is null ? NotConnectedYet
+            : "The speaker reports a room setting this app doesn't know. Change it in the Edifier app.";
+        if (tuning is null)
+        {
+            _roomTarget = null;
+            return;
+        }
+        if (_roomTarget is not null)
+        {
+            if (tuning != _roomTarget && Environment.TickCount64 < _roomTargetUntil) return;
+            _roomTarget = null;
+        }
+        ShowRoom(tuning);
+    }
+
+    private void ShowRoom(EdifierProtocol.RoomTuning tuning)
+    {
+        _updatingRoom = true;
+        try
+        {
+            if (WallSlider.Value != tuning.Space) WallSlider.Value = tuning.Space;
+            WallNumbers.Text = RoomPresets.SpaceNumbers(tuning.Space);
+            var bass = RoomPresets.MatchBass(tuning);
+            var index = bass is null ? -1 : RoomPresets.Bass.ToList().IndexOf(bass);
+            if (BassBox.SelectedIndex != index) BassBox.SelectedIndex = index;
+            BassCard.Description = $"{bass?.Description ?? "A setting made in the Edifier app."} {RoomPresets.BassNumbers(tuning)}.";
+            if (DeskSwitch.IsOn != tuning.Desktop) DeskSwitch.IsOn = tuning.Desktop;
+        }
+        finally
+        {
+            _updatingRoom = false;
+        }
+    }
+
+    private void WallSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e) => ApplyRoom();
+
+    private void BassBox_SelectionChanged(object sender, SelectionChangedEventArgs e) => ApplyRoom();
+
+    private void DeskSwitch_Toggled(object sender, RoutedEventArgs e) => ApplyRoom();
+
+    /// <summary>One of the three room controls moved: send all four values together.</summary>
+    private void ApplyRoom()
+    {
+        if (_updatingRoom || _speaker.SoundMode is not { } sound
+            || !EdifierProtocol.TryDecodeRoomTuning(sound, out var current)) return;
+        var shown = _roomTarget ?? current;
+        var index = BassBox.SelectedIndex;
+        var bass = index >= 0 && index < RoomPresets.Bass.Count ? RoomPresets.Bass[index] : null;
+        var wanted = new EdifierProtocol.RoomTuning(
+            bass?.LowCutHz ?? shown.LowCutHz,
+            bass?.Slope ?? shown.Slope,
+            (int)Math.Round(WallSlider.Value),
+            DeskSwitch.IsOn);
+        if (wanted == shown || !_speaker.RequestRoomTuning(wanted)) return;
+        _roomTarget = wanted;
+        _roomTargetUntil = Environment.TickCount64 + 5_000;
+        ShowRoom(wanted);
+        Log.Write($"Room -> {bass?.Name ?? "bass as set"}, space {wanted.Space}, desk {(wanted.Desktop ? "on" : "off")}");
+    }
+
     // ── Diagnostics and About ──────────────────────────────────────────
 
     public void UpdateDiagnostics(SpeakerDiagnostics d, string displayModel, string appVersion)
     {
         DiagStatus.Text = d.State switch
         {
-            SpeakerState.Connected when d.ConnectedSince is { } since => $"Connected since {since:HH:mm:ss}",
+            SpeakerState.Connected when d.ConnectedSince is { } since =>
+                $"Connected since {since.ToString("T", CultureInfo.CurrentCulture)}",
             SpeakerState.Connected => "Connected",
             SpeakerState.Connecting => "Connecting",
             SpeakerState.Searching => "Looking for the speaker",
-            _ => "Released (not connected)",
+            _ => "Released",
         };
         DiagExpander.Description = DiagStatus.Text;
         // Mention the name the speaker reports only when it says something the model doesn't.
@@ -740,20 +985,25 @@ public sealed partial class VolumeWindow : Window
         DiagFirmware.Text = d.Firmware ?? "–";
         DiagAddress.Text = d.Address ?? "–";
         DiagReconnects.Text = d.Reconnects.ToString();
-        DiagError.Text = d.LastError ?? "none";
+        DiagError.Text = d.LastError ?? "None";
         AboutExpander.Description = $"Version {appVersion}";
     }
 
+    /// <summary>
+    /// Reconnect (Diagnostics and the connection bar). It stays enabled, so keyboard focus
+    /// doesn't drop while it works (review 2.3); a second press meanwhile does nothing.
+    /// </summary>
     private async void ReconnectButton_Click(object sender, RoutedEventArgs e)
     {
-        ReconnectButton.IsEnabled = false;
+        if (_reconnecting) return;
+        _reconnecting = true;
         try
         {
-            await _reconnect();
+            await _commands.Reconnect();
         }
         finally
         {
-            ReconnectButton.IsEnabled = true;
+            _reconnecting = false;
         }
     }
 

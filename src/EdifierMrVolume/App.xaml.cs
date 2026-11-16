@@ -1,5 +1,6 @@
 using System.Drawing.Imaging;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using H.NotifyIcon;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
@@ -37,6 +38,9 @@ public partial class App : Application
     private int _wheelTarget;
     private long _wheelAt = long.MinValue / 2;
     private VolumeWindow? _window;
+    /// <summary>The panel was opened from the keyboard: give focus back to the notification area when it closes.</summary>
+    private bool _openedByKeyboard;
+    private long _rightClickAt = long.MinValue / 2;
     private AppSettings _settings = new();
     private readonly UISettings _uiSettings = new();
     private bool _exiting;
@@ -97,7 +101,8 @@ public partial class App : Application
         _speaker.VolumeChanged += (_, change) => _ui.TryEnqueue(() => OnVolumeChanged(change));
 
         CreateTrayIcon();
-        // Taskbar switched between light and dark: redraw the digits in the matching colour.
+        // Taskbar switched between light and dark, or a contrast theme came or went: redraw the
+        // digits in the matching colour.
         _uiSettings.ColorValuesChanged += (_, _) => _ui.TryEnqueue(Refresh);
         WatchForWakeUp();
 
@@ -121,10 +126,11 @@ public partial class App : Application
 
     private void CreateTrayIcon()
     {
-        _connectItem = new ToggleMenuFlyoutItem { Text = "Connected to speaker", Command = new RelayCommand(ToggleConnection) };
+        // Ticked while the app may hold the speaker's link (review 2.15: a command, not a state).
+        _connectItem = new ToggleMenuFlyoutItem { Text = "Connect to speaker", Command = new RelayCommand(ToggleConnection) };
         _autostartItem = new ToggleMenuFlyoutItem { Text = "Start with Windows", Command = new RelayCommand(ToggleAutostart) };
-        // Owner's choice (2026-11-16): no confirmation.
-        _powerItem = new MenuFlyoutItem { Text = "Switch speakers off", IsEnabled = false, Command = new RelayCommand(() => _ = PowerOffAsync()) };
+        // Owner's choice (2026-11-16): no confirmation, and it stays where it is.
+        _powerItem = new MenuFlyoutItem { Text = "Turn off speakers", IsEnabled = false, Command = new RelayCommand(() => _ = PowerOffAsync()) };
 
         var menu = new MenuFlyout();
         menu.Items.Add(new MenuFlyoutItem { Text = "Open", Command = new RelayCommand(ShowWindow) });
@@ -155,12 +161,31 @@ public partial class App : Application
         _tray.TrayIcon.MessageWindow.MouseEventReceived += (_, e) =>
         {
             if (e.MouseEvent == H.NotifyIcon.Core.MouseEvent.MouseMove) _wheel.PointerOverIcon();
+            else if (e.MouseEvent == H.NotifyIcon.Core.MouseEvent.IconRightMouseUp) _rightClickAt = Environment.TickCount64;
+        };
+
+        // The keyboard (Win+B, the arrow keys, then Enter or Space, or Shift+F10 for the menu):
+        // H.NotifyIcon only reports these, so act on them here (review 2.1).
+        _tray.TrayIcon.MessageWindow.KeyboardEventReceived += (_, e) =>
+        {
+            switch (e.KeyboardEvent)
+            {
+                case H.NotifyIcon.Core.KeyboardEvent.KeySelect:
+                    _ui.TryEnqueue(() => ToggleWindow(keyboard: true));
+                    break;
+                // Windows sends this after a right-click too, which has opened the menu already.
+                case H.NotifyIcon.Core.KeyboardEvent.ContextMenu when Environment.TickCount64 - _rightClickAt > 500:
+                    var point = e.Point;
+                    _ui.TryEnqueue(() => _tray.ShowContextMenu(point));
+                    break;
+            }
         };
     }
 
     /// <summary>
-    /// One wheel notch over the number: one step up or down. The Volume limit applies, and a
-    /// notch up never lowers the volume (when the knob has set it above the limit).
+    /// One wheel notch over the number: one step up or down, always (owner, 2026-11-16). A notch
+    /// up never goes above the Volume limit; a notch down from above it (where the knob put it)
+    /// is one step too, not a drop to the limit.
     /// </summary>
     private void OnWheel(int notch)
     {
@@ -170,9 +195,16 @@ public partial class App : Application
         // reply, which lags behind.
         var from = now - _wheelAt < 1500 ? _wheelTarget : volume.Current;
         var highest = Math.Min(volume.Max, _settings.EffectiveVolumeLimit ?? volume.Max);
-        var target = from + notch;
-        if (notch > 0 && target > highest) return; // at the limit, or above it by the knob
-        target = Math.Clamp(target, 0, highest);
+        int target;
+        if (notch > 0)
+        {
+            if (from >= highest) return; // at the limit, or above it by the knob
+            target = Math.Min(from + notch, highest);
+        }
+        else
+        {
+            target = Math.Max(0, from + notch);
+        }
         if (target == from) return;
         _wheelTarget = target;
         _wheelAt = now;
@@ -264,9 +296,14 @@ public partial class App : Application
         _iconColor = color;
     }
 
-    /// <summary>White digits on a dark taskbar, black on a light one; greyed out while not connected.</summary>
+    /// <summary>
+    /// White digits on a dark taskbar, black on a light one; greyed out while not connected. In a
+    /// contrast theme, the theme's own text colours (review 2.6).
+    /// </summary>
     private static System.Drawing.Color IconColor(bool dimmed)
     {
+        if (NativeTheme.HighContrastOn())
+            return NativeTheme.SystemColor(dimmed ? NativeTheme.ColorGrayText : NativeTheme.ColorWindowText);
         using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
             @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
         var lightTaskbar = key?.GetValue("SystemUsesLightTheme") is int value && value == 1;
@@ -290,17 +327,19 @@ public partial class App : Application
         {
             SpeakerState.Connected when volume is { } v => $"{model} volume: {v.Current} of {v.Max}",
             SpeakerState.Connected or SpeakerState.Connecting => $"{model}: connecting…",
+            SpeakerState.Searching when _speaker.SwitchedOff => $"{model}: turned off",
             SpeakerState.Searching => _speaker.Detail is { } detail
                 ? $"{model}: {Trim(detail, 90)}"
                 : $"{model}: looking for the speaker…",
-            _ => $"{model}: disconnected",
+            _ => $"{model}: released",
         };
         _connectItem.IsChecked = _speaker.IsRunning;
         _powerItem.IsEnabled = state == SpeakerState.Connected && !_speaker.SwitchedOff;
         _autostartItem.IsChecked = Autostart.IsEnabled;
         if (_window is not null)
         {
-            _window.Update(state, volume, model, _speaker.Detail, _speaker.SoundMode, _speaker.Equalizer);
+            _window.Update(state, volume, model, _speaker.Detail, _speaker.SoundMode, _speaker.Equalizer,
+                _speaker.IsRunning, Autostart.IsEnabled);
             _window.UpdateDiagnostics(_speaker.GetDiagnostics(), model, AppVersion);
         }
     }
@@ -316,9 +355,16 @@ public partial class App : Application
     {
         if (_window is null)
         {
-            _window = new VolumeWindow(_speaker, _settings, ReconnectAsync, PowerOffAsync, ApplySettings);
-            _window.Update(_speaker.State, _speaker.Volume, DisplayModel, _speaker.Detail, _speaker.SoundMode, _speaker.Equalizer);
-            _window.UpdateDiagnostics(_speaker.GetDiagnostics(), DisplayModel, AppVersion);
+            _window = new VolumeWindow(_speaker, _settings, new WindowCommands(
+                ReconnectAsync, PowerOffAsync, SetConnectedAsync, SetAutostart, ExitApp, ApplySettings));
+            _window.Hidden += (_, _) =>
+            {
+                // Opened from the keyboard: back to the notification area, as Windows asks.
+                if (!_openedByKeyboard) return;
+                _openedByKeyboard = false;
+                _tray.TrayIcon.SetFocus();
+            };
+            Refresh();
         }
         return _window;
     }
@@ -332,42 +378,56 @@ public partial class App : Application
         Refresh();
     }
 
-    /// <summary>The panel's power button and the menu item: switch the speakers off now.</summary>
+    /// <summary>The panel's power button and the menu item: turn the speakers off now.</summary>
     private async Task PowerOffAsync()
     {
-        Log.Write("User switched the speakers off.");
+        Log.Write("User turned the speakers off.");
         if (!await _speaker.PowerOffAsync(TimeSpan.FromSeconds(2)))
-            Log.Write("Could not switch the speakers off.");
+            Log.Write("Could not turn the speakers off.");
         Refresh();
     }
 
-    private void ToggleWindow() => EnsureWindow().Toggle();
+    private void ToggleWindow() => ToggleWindow(keyboard: false);
+
+    private void ToggleWindow(bool keyboard)
+    {
+        var window = EnsureWindow();
+        _openedByKeyboard = keyboard;
+        window.Toggle(keyboard);
+    }
 
     private void ShowWindow() => EnsureWindow().ShowFlyout();
 
-    private async void ToggleConnection()
+    private async void ToggleConnection() => await SetConnectedAsync(!_speaker.IsRunning);
+
+    /// <summary>Connect to speaker: the menu item, the settings switch and the Connect button.</summary>
+    private async Task SetConnectedAsync(bool connect)
     {
-        if (_speaker.IsRunning)
-        {
-            Log.Write("User released the speaker.");
-            await _speaker.StopAsync();
-        }
-        else
+        if (connect == _speaker.IsRunning) return;
+        if (connect)
         {
             Log.Write("User reconnected.");
             _speaker.Start();
         }
+        else
+        {
+            Log.Write("User released the speaker.");
+            await _speaker.StopAsync();
+        }
         Refresh();
     }
 
-    private void ToggleAutostart()
+    private void ToggleAutostart() => SetAutostart(!Autostart.IsEnabled);
+
+    private void SetAutostart(bool on)
     {
-        Autostart.Set(!Autostart.IsEnabled);
+        if (on != Autostart.IsEnabled) Autostart.Set(on);
         Refresh();
     }
 
     private async void ExitApp()
     {
+        if (_exiting) return;
         _exiting = true;
         Log.Write("Exiting.");
         _wheel?.Dispose();
@@ -422,5 +482,42 @@ public partial class App : Application
             }
         }
         sheet.Save(Path.Combine(directory, "sheet.png"), ImageFormat.Png);
+    }
+}
+
+/// <summary>Contrast themes, for the notification-area digits.</summary>
+internal static partial class NativeTheme
+{
+    public const int ColorWindowText = 8;
+    public const int ColorGrayText = 17;
+    private const uint SpiGetHighContrast = 0x0042;
+    private const uint HcfHighContrastOn = 0x1;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct HighContrast
+    {
+        public uint Size;
+        public uint Flags;
+        public nint DefaultScheme;
+    }
+
+    [LibraryImport("user32.dll", EntryPoint = "SystemParametersInfoW")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool SystemParametersInfo(uint action, uint param, ref HighContrast value, uint winIni);
+
+    [LibraryImport("user32.dll")]
+    private static partial uint GetSysColor(int index);
+
+    public static bool HighContrastOn()
+    {
+        var value = new HighContrast { Size = (uint)Marshal.SizeOf<HighContrast>() };
+        return SystemParametersInfo(SpiGetHighContrast, value.Size, ref value, 0) && (value.Flags & HcfHighContrastOn) != 0;
+    }
+
+    /// <summary>A system colour (COLORREF is 0x00BBGGRR).</summary>
+    public static System.Drawing.Color SystemColor(int index)
+    {
+        var c = GetSysColor(index);
+        return System.Drawing.Color.FromArgb((int)(c & 0xFF), (int)((c >> 8) & 0xFF), (int)((c >> 16) & 0xFF));
     }
 }

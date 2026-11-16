@@ -28,8 +28,12 @@ internal sealed class AppSettings
     /// <summary>How long that pop-up stays after the last change.</summary>
     public int HideAfterSeconds { get; set; } = HideChoices[0];
 
-    /// <summary>Cap what the app sets (slider, wheel, start volume). The knob isn't limited.</summary>
-    public bool VolumeLimitEnabled { get; set; }
+    /// <summary>
+    /// Cap what the app sets (slider, wheel, start volume). The knob isn't limited. On for new
+    /// installs, at 24, since studio monitors at 30 are very loud (owner, 2026-11-16); a saved
+    /// setting is kept.
+    /// </summary>
+    public bool VolumeLimitEnabled { get; set; } = true;
     public int VolumeLimit { get; set; } = 24;
 
     /// <summary>Set this level whenever the app connects to the speaker.</summary>
@@ -39,7 +43,7 @@ internal sealed class AppSettings
     /// <summary>The one-time hint about Windows hiding new notification-area icons was shown.</summary>
     public bool FirstRunDone { get; set; }
 
-    /// <summary>Switch the speakers off when Windows goes to sleep. Off by default.</summary>
+    /// <summary>Turn the speakers off when Windows goes to sleep. Off by default.</summary>
     public bool PowerOffOnSleep { get; set; }
 
     /// <summary>Equalizer choice: a preset name or "Custom"; null until the speaker's curve is known.</summary>

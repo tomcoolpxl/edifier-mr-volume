@@ -8,6 +8,9 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <Product>Edifier MR Volume</Product>
+    <!-- The exe's File description: the name Windows shows in Task Manager and in Settings'
+         list of notification-area icons. -->
+    <AssemblyTitle>Edifier MR Volume</AssemblyTitle>
     <Platforms>x64;ARM64</Platforms>
     <Platform Condition="'$(Platform)' == '' or '$(Platform)' == 'AnyCPU' or '$(Platform)' == 'Any CPU'">x64</Platform>
     <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
@@ -27,6 +30,8 @@
     <PackageReference Include="H.NotifyIcon.WinUI" Version="2.4.1" />
     <!-- SettingsCard / SettingsExpander, as Microsoft's app-settings guidelines recommend. -->
     <PackageReference Include="CommunityToolkit.WinUI.Controls.SettingsControls" Version="8.2.251219" />
+    <!-- The sound-mode switch: the Toolkit's control for "a view or setting" with 2-5 choices. -->
+    <PackageReference Include="CommunityToolkit.WinUI.Controls.Segmented" Version="8.2.251219" />
   </ItemGroup>
 
   <ItemGroup>

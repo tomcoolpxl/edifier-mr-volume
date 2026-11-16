@@ -18,9 +18,20 @@
                 <Setter Property="IsTextSelectionEnabled" Value="True" />
                 <Setter Property="TextWrapping" Value="Wrap" />
             </Style>
+            <!-- The numbers under the room-tuning words (owner: everyday words, numbers in small print). -->
+            <Style x:Key="SmallPrint" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextBlockStyle}">
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+            <!-- Icon buttons: about 32 x 32 (Microsoft's targeting guidance; review 2.14). -->
+            <Style x:Key="IconButton" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+                <Setter Property="Padding" Value="9" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+            </Style>
         </Grid.Resources>
 
-        <!-- Main view: model, status, settings button, messages, mute, slider and level. -->
+        <!-- Main view: model and status, settings button, messages, sound mode, mute, slider and level. -->
         <Grid
             x:Name="MainView"
             VerticalAlignment="Top"
@@ -35,44 +46,46 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
+            <!-- The status sits under the model name, so large text can't push the buttons out (review 2.10). -->
             <Grid ColumnSpacing="8">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBlock
-                    x:Name="ModelText"
-                    Style="{StaticResource BodyStrongTextBlockStyle}"
-                    Text="Edifier MR"
-                    VerticalAlignment="Center" />
-                <TextBlock
-                    x:Name="StatusText"
-                    Grid.Column="1"
-                    Style="{StaticResource CaptionTextBlockStyle}"
-                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                    VerticalAlignment="Center" />
-                <!-- Owner's choice (2026-11-16): no confirmation. The speakers come back on only
-                     with their own power button. -->
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock
+                        x:Name="ModelText"
+                        Style="{StaticResource BodyStrongTextBlockStyle}"
+                        Text="Edifier MR"
+                        TextWrapping="Wrap" />
+                    <TextBlock
+                        x:Name="StatusText"
+                        Style="{StaticResource CaptionTextBlockStyle}"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        TextWrapping="Wrap"
+                        Visibility="Collapsed" />
+                </StackPanel>
+                <!-- Owner's choice (2026-11-16): no confirmation, and the button stays as it is.
+                     The speakers come back on only with their own power button. -->
                 <Button
                     x:Name="PowerButton"
-                    Grid.Column="2"
+                    Grid.Column="1"
                     Padding="6"
                     Background="Transparent"
                     BorderThickness="0"
+                    VerticalAlignment="Center"
                     IsEnabled="False"
-                    AutomationProperties.Name="Switch speakers off"
-                    ToolTipService.ToolTip="Switch speakers off"
+                    AutomationProperties.Name="Turn off speakers"
+                    ToolTipService.ToolTip="Turn off speakers"
                     Click="PowerButton_Click">
                     <FontIcon Glyph="&#xE7E8;" FontSize="14" />
                 </Button>
                 <Button
                     x:Name="SettingsButton"
-                    Grid.Column="3"
-                    Padding="6"
-                    Background="Transparent"
-                    BorderThickness="0"
+                    Grid.Column="2"
+                    Style="{StaticResource IconButton}"
+                    VerticalAlignment="Center"
                     AutomationProperties.Name="Settings and diagnostics"
                     ToolTipService.ToolTip="Settings and diagnostics"
                     Click="SettingsButton_Click">
@@ -80,7 +93,7 @@
                 </Button>
             </Grid>
 
-            <!-- Once, on first start: Windows 11 hides new notification-area icons. -->
+            <!-- Once, on first start: Windows may hide new notification-area icons (review 2.8). -->
             <InfoBar
                 x:Name="FirstRunBar"
                 Grid.Row="1"
@@ -88,29 +101,68 @@
                 IsOpen="False"
                 IsClosable="True"
                 Severity="Informational"
-                Title="Your speaker's volume is the number in the notification area"
-                Message="If Windows hides it, switch it on under Settings › Personalization › Taskbar › Other system tray icons › EdifierMrVolume."
-                Closed="FirstRunBar_Closed" />
+                Title="Your volume is in the notification area"
+                Closed="FirstRunBar_Closed">
+                <InfoBar.ActionButton>
+                    <Button Content="Taskbar settings" Click="TaskbarSettings_Click" />
+                </InfoBar.ActionButton>
+            </InfoBar>
 
-            <!-- Why it isn't connected, when it isn't. -->
-            <TextBlock
-                x:Name="MessageText"
+            <!-- Why it isn't connected, when it isn't, with what to do about it (review 2.7). -->
+            <InfoBar
+                x:Name="ConnectionBar"
                 Grid.Row="2"
                 Margin="0,0,8,4"
-                Style="{StaticResource CaptionTextBlockStyle}"
-                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                TextWrapping="Wrap"
-                Visibility="Collapsed" />
+                IsOpen="False"
+                IsClosable="False" />
 
-            <Grid Grid.Row="3" ColumnSpacing="8" Padding="0,0,8,0">
+            <!-- Sound mode, above the volume (owner, 2026-11-16). Segmented is the Toolkit's
+                 control for "a view or setting" with 2-5 choices (review 2.9). Shown once the
+                 speaker has reported its mode. -->
+            <Grid x:Name="ModeRow" Grid.Row="3" ColumnSpacing="12" Padding="0,0,8,4" Visibility="Collapsed">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock
+                    x:Name="ModeLabel"
+                    Style="{StaticResource BodyTextBlockStyle}"
+                    Text="Sound"
+                    VerticalAlignment="Center" />
+                <controls:Segmented
+                    x:Name="ModeBar"
+                    Grid.Column="1"
+                    HorizontalAlignment="Stretch"
+                    AutomationProperties.Name="Sound mode"
+                    SelectionChanged="ModeBar_SelectionChanged">
+                    <controls:SegmentedItem
+                        x:Name="ModeMonitor"
+                        Content="Monitor"
+                        Tag="0"
+                        ToolTipService.ToolTip="Neutral, as recorded. Red light on the speaker." />
+                    <controls:SegmentedItem
+                        x:Name="ModeMusic"
+                        Content="Music"
+                        Tag="1"
+                        ToolTipService.ToolTip="Warmer, with more mid-bass. Green light on the speaker." />
+                    <controls:SegmentedItem
+                        x:Name="ModeCustom"
+                        Content="Custom"
+                        Tag="2"
+                        ToolTipService.ToolTip="Plays the equalizer curve. White light on the speaker." />
+                </controls:Segmented>
+            </Grid>
+
+            <Grid Grid.Row="4" ColumnSpacing="8" Padding="0,0,8,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <Button
+                <!-- A toggle, so Narrator says whether it is on (review 2.12). -->
+                <ToggleButton
                     x:Name="MuteButton"
-                    Padding="6"
+                    Padding="7"
                     Background="Transparent"
                     BorderThickness="0"
                     IsEnabled="False"
@@ -118,7 +170,7 @@
                     ToolTipService.ToolTip="Mute"
                     Click="MuteButton_Click">
                     <FontIcon x:Name="MuteIcon" Glyph="&#xE767;" FontSize="18" />
-                </Button>
+                </ToggleButton>
                 <Slider
                     x:Name="VolumeSlider"
                     Grid.Column="1"
@@ -140,20 +192,6 @@
                     TextAlignment="Right"
                     VerticalAlignment="Center" />
             </Grid>
-
-            <!-- Sound mode: SelectorBar is WinUI's control for switching between 2-3 modes.
-                 Shown once the speaker has reported its mode. -->
-            <SelectorBar
-                x:Name="ModeBar"
-                Grid.Row="4"
-                Margin="-4,2,8,0"
-                Visibility="Collapsed"
-                AutomationProperties.Name="Sound mode"
-                SelectionChanged="ModeBar_SelectionChanged">
-                <SelectorBarItem Text="Monitor" Tag="0" />
-                <SelectorBarItem Text="Music" Tag="1" />
-                <SelectorBarItem Text="Custom" Tag="2" />
-            </SelectorBar>
         </Grid>
 
         <!-- Settings, diagnostics and About, behind the gear button. -->
@@ -165,9 +203,7 @@
                 <StackPanel Orientation="Horizontal" Spacing="4">
                     <Button
                         x:Name="BackButton"
-                        Padding="6"
-                        Background="Transparent"
-                        BorderThickness="0"
+                        Style="{StaticResource IconButton}"
                         AutomationProperties.Name="Back to volume"
                         ToolTipService.ToolTip="Back"
                         Click="BackButton_Click">
@@ -185,6 +221,7 @@
                 <StackPanel Spacing="4">
                     <TextBlock Margin="4,4,0,4" Style="{StaticResource BodyStrongTextBlockStyle}" Text="Panel" />
                     <controls:SettingsExpander
+                        x:Name="AutoOpenExpander"
                         Header="Auto-open panel"
                         Description="Opens this panel for a moment when you turn the knob on the speaker.">
                         <controls:SettingsExpander.HeaderIcon>
@@ -196,26 +233,23 @@
                             Toggled="ShowOnKnobSwitch_Toggled" />
                         <controls:SettingsExpander.Items>
                             <controls:SettingsCard x:Name="HideAfterCard" Header="Close after" ContentAlignment="Vertical">
-                                <StackPanel x:Name="HideAfterChoice" Orientation="Horizontal">
-                                    <StackPanel.Resources>
-                                        <Style TargetType="RadioButton" BasedOn="{StaticResource DefaultRadioButtonStyle}">
-                                            <Setter Property="MinWidth" Value="64" />
-                                            <Setter Property="GroupName" Value="HideAfter" />
-                                        </Style>
-                                    </StackPanel.Resources>
-                                    <RadioButton x:Name="Hide1" Content="1 s" Tag="1" Checked="HideAfter_Checked" />
-                                    <RadioButton x:Name="Hide2" Content="2 s" Tag="2" Checked="HideAfter_Checked" />
-                                    <RadioButton x:Name="Hide3" Content="3 s" Tag="3" Checked="HideAfter_Checked" />
-                                    <RadioButton x:Name="Hide5" Content="5 s" Tag="5" Checked="HideAfter_Checked" />
-                                </StackPanel>
+                                <!-- One group, one Tab stop, named for Narrator (review 2.11). -->
+                                <RadioButtons
+                                    x:Name="HideAfterChoice"
+                                    MaxColumns="4"
+                                    AutomationProperties.Name="Close after"
+                                    SelectionChanged="HideAfter_SelectionChanged">
+                                    <RadioButton Content="1 s" MinWidth="64" AutomationProperties.Name="1 second" />
+                                    <RadioButton Content="2 s" MinWidth="64" AutomationProperties.Name="2 seconds" />
+                                    <RadioButton Content="3 s" MinWidth="64" AutomationProperties.Name="3 seconds" />
+                                    <RadioButton Content="5 s" MinWidth="64" AutomationProperties.Name="5 seconds" />
+                                </RadioButtons>
                             </controls:SettingsCard>
                         </controls:SettingsExpander.Items>
                     </controls:SettingsExpander>
 
                     <TextBlock Margin="4,12,0,4" Style="{StaticResource BodyStrongTextBlockStyle}" Text="Volume" />
-                    <controls:SettingsExpander
-                        Header="Volume limit"
-                        Description="This app never sets the volume higher. The knob on the speaker isn't limited.">
+                    <controls:SettingsExpander x:Name="LimitExpander" Header="Volume limit">
                         <controls:SettingsExpander.HeaderIcon>
                             <FontIcon Glyph="&#xE72E;" />
                         </controls:SettingsExpander.HeaderIcon>
@@ -236,9 +270,7 @@
                             </controls:SettingsCard>
                         </controls:SettingsExpander.Items>
                     </controls:SettingsExpander>
-                    <controls:SettingsExpander
-                        Header="Start volume"
-                        Description="Sets this level whenever the app connects to the speaker, for example at sign-in.">
+                    <controls:SettingsExpander x:Name="StartExpander" Header="Start volume">
                         <controls:SettingsExpander.HeaderIcon>
                             <FontIcon Glyph="&#xE768;" />
                         </controls:SettingsExpander.HeaderIcon>
@@ -267,7 +299,7 @@
                     <controls:SettingsExpander
                         x:Name="EqExpander"
                         Header="Equalizer"
-                        Description="Used in Custom mode.">
+                        Description="Heard in Custom mode.">
                         <controls:SettingsExpander.HeaderIcon>
                             <FontIcon Glyph="&#xE9E9;" />
                         </controls:SettingsExpander.HeaderIcon>
@@ -281,12 +313,38 @@
                             <controls:SettingsCard
                                 x:Name="EqBandsCard"
                                 Header="Bands"
-                                Description="Steps up or down from flat. Choosing a preset or moving a band switches the speakers to Custom mode; moving a band makes it your Custom curve."
                                 ContentAlignment="Vertical"
                                 IsEnabled="False">
                                 <Grid x:Name="EqBandsGrid" ColumnSpacing="8" HorizontalAlignment="Stretch">
+                                    <!-- Lightweight styling: no accent fill from the left end, which
+                                         made a cut look like a boost; the thumb and the ticks show
+                                         the step (review 2.16). -->
+                                    <Grid.Resources>
+                                        <ResourceDictionary>
+                                            <ResourceDictionary.ThemeDictionaries>
+                                                <ResourceDictionary x:Key="Light">
+                                                    <StaticResource x:Key="SliderTrackValueFill" ResourceKey="SliderTrackFill" />
+                                                    <StaticResource x:Key="SliderTrackValueFillPointerOver" ResourceKey="SliderTrackFillPointerOver" />
+                                                    <StaticResource x:Key="SliderTrackValueFillPressed" ResourceKey="SliderTrackFillPressed" />
+                                                    <StaticResource x:Key="SliderTrackValueFillDisabled" ResourceKey="SliderTrackFillDisabled" />
+                                                </ResourceDictionary>
+                                                <ResourceDictionary x:Key="Dark">
+                                                    <StaticResource x:Key="SliderTrackValueFill" ResourceKey="SliderTrackFill" />
+                                                    <StaticResource x:Key="SliderTrackValueFillPointerOver" ResourceKey="SliderTrackFillPointerOver" />
+                                                    <StaticResource x:Key="SliderTrackValueFillPressed" ResourceKey="SliderTrackFillPressed" />
+                                                    <StaticResource x:Key="SliderTrackValueFillDisabled" ResourceKey="SliderTrackFillDisabled" />
+                                                </ResourceDictionary>
+                                                <ResourceDictionary x:Key="HighContrast">
+                                                    <StaticResource x:Key="SliderTrackValueFill" ResourceKey="SliderTrackFill" />
+                                                    <StaticResource x:Key="SliderTrackValueFillPointerOver" ResourceKey="SliderTrackFillPointerOver" />
+                                                    <StaticResource x:Key="SliderTrackValueFillPressed" ResourceKey="SliderTrackFillPressed" />
+                                                    <StaticResource x:Key="SliderTrackValueFillDisabled" ResourceKey="SliderTrackFillDisabled" />
+                                                </ResourceDictionary>
+                                            </ResourceDictionary.ThemeDictionaries>
+                                        </ResourceDictionary>
+                                    </Grid.Resources>
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" MinWidth="48" />
+                                        <ColumnDefinition Width="Auto" MinWidth="40" />
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" MinWidth="24" />
                                     </Grid.ColumnDefinitions>
@@ -295,20 +353,81 @@
                         </controls:SettingsExpander.Items>
                     </controls:SettingsExpander>
 
+                    <!-- Room tuning (ConneX's "Acoustic Tuning") in everyday words, with the numbers
+                         in small print (owner, 2026-11-16). -->
+                    <controls:SettingsExpander
+                        x:Name="RoomExpander"
+                        Header="Room"
+                        Description="Adjusts the bass to where the speakers stand.">
+                        <controls:SettingsExpander.HeaderIcon>
+                            <FontIcon Glyph="&#xE80F;" />
+                        </controls:SettingsExpander.HeaderIcon>
+                        <controls:SettingsExpander.Items>
+                            <controls:SettingsCard
+                                x:Name="WallCard"
+                                Header="Where the speakers stand"
+                                Description="Closer to a wall or corner: move it right, then listen."
+                                ContentAlignment="Vertical"
+                                IsEnabled="False">
+                                <StackPanel HorizontalAlignment="Stretch" Spacing="2">
+                                    <Slider
+                                        x:Name="WallSlider"
+                                        Minimum="0"
+                                        Maximum="4"
+                                        StepFrequency="1"
+                                        SmallChange="1"
+                                        LargeChange="1"
+                                        TickFrequency="1"
+                                        TickPlacement="Inline"
+                                        SnapsTo="StepValues"
+                                        IsThumbToolTipEnabled="False"
+                                        AutomationProperties.Name="Where the speakers stand, from the middle of the room to a corner"
+                                        ValueChanged="WallSlider_ValueChanged" />
+                                    <Grid>
+                                        <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Text="Middle of the room" />
+                                        <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Text="In a corner" HorizontalAlignment="Right" />
+                                    </Grid>
+                                    <TextBlock x:Name="WallNumbers" Style="{StaticResource SmallPrint}" />
+                                </StackPanel>
+                            </controls:SettingsCard>
+                            <controls:SettingsCard
+                                x:Name="BassCard"
+                                Header="Bass"
+                                IsEnabled="False">
+                                <ComboBox
+                                    x:Name="BassBox"
+                                    MinWidth="140"
+                                    PlaceholderText="Set in the Edifier app"
+                                    AutomationProperties.Name="Bass"
+                                    SelectionChanged="BassBox_SelectionChanged" />
+                            </controls:SettingsCard>
+                            <controls:SettingsCard
+                                x:Name="DeskCard"
+                                Header="On a desk"
+                                Description="Evens out the extra bass a desk under the speakers adds."
+                                IsEnabled="False">
+                                <ToggleSwitch
+                                    x:Name="DeskSwitch"
+                                    AutomationProperties.Name="On a desk"
+                                    Toggled="DeskSwitch_Toggled" />
+                            </controls:SettingsCard>
+                        </controls:SettingsExpander.Items>
+                    </controls:SettingsExpander>
+
                     <TextBlock Margin="4,12,0,4" Style="{StaticResource BodyStrongTextBlockStyle}" Text="Power" />
                     <controls:SettingsCard
-                        Header="Switch off when the PC sleeps"
-                        Description="Switches the speakers off when Windows goes to sleep. You switch them back on with their own power button.">
+                        Header="Turn off when the PC sleeps"
+                        Description="Turns the speakers off when Windows goes to sleep. You turn them back on with their own power button.">
                         <controls:SettingsCard.HeaderIcon>
                             <FontIcon Glyph="&#xE7E8;" />
                         </controls:SettingsCard.HeaderIcon>
                         <ToggleSwitch
                             x:Name="SleepOffSwitch"
-                            AutomationProperties.Name="Switch off when the PC sleeps"
+                            AutomationProperties.Name="Turn off when the PC sleeps"
                             Toggled="SleepOffSwitch_Toggled" />
                     </controls:SettingsCard>
                     <!-- The speaker's own setting (0xB1/0xB2), shown as the speaker reports it; the knob
-                         (volume 0, double-press) switches the same setting. -->
+                         (volume 0, double-press) changes the same setting. -->
                     <controls:SettingsCard
                         x:Name="PowerSavingCard"
                         Header="Power saving"
@@ -323,6 +442,29 @@
                     </controls:SettingsCard>
 
                     <TextBlock Margin="4,12,0,4" Style="{StaticResource BodyStrongTextBlockStyle}" Text="Connection" />
+                    <!-- Also in the notification-area menu; here for keyboard and Narrator users (review 2.1). -->
+                    <controls:SettingsCard
+                        Header="Connect to speaker"
+                        Description="Turn this off to release the speaker, so another device such as the ConneX app can connect.">
+                        <controls:SettingsCard.HeaderIcon>
+                            <FontIcon Glyph="&#xE702;" />
+                        </controls:SettingsCard.HeaderIcon>
+                        <ToggleSwitch
+                            x:Name="ConnectSwitch"
+                            AutomationProperties.Name="Connect to speaker"
+                            Toggled="ConnectSwitch_Toggled" />
+                    </controls:SettingsCard>
+                    <controls:SettingsCard
+                        Header="Start with Windows"
+                        Description="Starts the app when you sign in.">
+                        <controls:SettingsCard.HeaderIcon>
+                            <FontIcon Glyph="&#xE770;" />
+                        </controls:SettingsCard.HeaderIcon>
+                        <ToggleSwitch
+                            x:Name="AutostartSwitch"
+                            AutomationProperties.Name="Start with Windows"
+                            Toggled="AutostartSwitch_Toggled" />
+                    </controls:SettingsCard>
                     <controls:SettingsExpander x:Name="DiagExpander" Header="Diagnostics">
                         <controls:SettingsExpander.HeaderIcon>
                             <FontIcon Glyph="&#xE9D9;" />
@@ -348,7 +490,7 @@
                                     <TextBlock Grid.Row="1" Grid.Column="1" x:Name="DiagSpeaker" Style="{StaticResource DiagValue}" />
                                     <TextBlock Grid.Row="2" Style="{StaticResource DiagLabel}" Text="Firmware" />
                                     <TextBlock Grid.Row="2" Grid.Column="1" x:Name="DiagFirmware" Style="{StaticResource DiagValue}" />
-                                    <TextBlock Grid.Row="3" Style="{StaticResource DiagLabel}" Text="Bluetooth" />
+                                    <TextBlock Grid.Row="3" Style="{StaticResource DiagLabel}" Text="Bluetooth address" />
                                     <TextBlock Grid.Row="3" Grid.Column="1" x:Name="DiagAddress" Style="{StaticResource DiagValue}" />
                                     <TextBlock Grid.Row="4" Style="{StaticResource DiagLabel}" Text="Reconnects" />
                                     <TextBlock Grid.Row="4" Grid.Column="1" x:Name="DiagReconnects" Style="{StaticResource DiagValue}" />
@@ -359,7 +501,7 @@
                             <controls:SettingsCard ContentAlignment="Left">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Button x:Name="ReconnectButton" Content="Reconnect" Click="ReconnectButton_Click" />
-                                    <Button Content="Open log" Click="OpenLogButton_Click" />
+                                    <Button x:Name="OpenLogButton" Content="Open log" Click="OpenLogButton_Click" />
                                 </StackPanel>
                             </controls:SettingsCard>
                         </controls:SettingsExpander.Items>
@@ -389,7 +531,13 @@
                             </controls:SettingsCard>
                             <controls:SettingsCard
                                 Header="Unofficial"
-                                Description="Not affiliated with or endorsed by Edifier. MIT licence." />
+                                Description="Not affiliated with or endorsed by Edifier. MIT License." />
+                            <!-- Also in the notification-area menu; here for keyboard users (review 2.1). -->
+                            <controls:SettingsCard
+                                Header="Exit"
+                                Description="Closes the app. The volume number goes away until you start the app again.">
+                                <Button x:Name="ExitButton" Content="Exit" Click="ExitButton_Click" />
+                            </controls:SettingsCard>
                         </controls:SettingsExpander.Items>
                     </controls:SettingsExpander>
                 </StackPanel>
