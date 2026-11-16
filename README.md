@@ -7,13 +7,13 @@ speaker's Bluetooth LE control interface (the one the EDIFIER ConneX phone app u
 doesn't depend on the Windows volume slider. Control runs over its own Bluetooth LE link,
 separate from the audio input (tested with the speakers fed by a USB audio interface).
 
-The speaker volume in the notification area (the **13** on the left):
+The speaker volume in the notification area (the **7** on the left):
 
 ![Taskbar with the speaker volume shown as a number in the notification area](docs/images/tray.png)
 
 Click it for the panel:
 
-![Panel with the model name, a volume slider and the current level](docs/images/flyout.png)
+![Panel above the number: model name, power and settings buttons, sound mode, mute, volume slider and level](docs/images/flyout.png)
 
 ## Supported speakers
 
