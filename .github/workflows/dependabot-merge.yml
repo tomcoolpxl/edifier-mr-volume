@@ -1,7 +1,7 @@
 name: Dependabot merge
 
 # Dependabot's patch and minor updates merge themselves once CI has passed on the very
-# commit proposed (the owner, 2026-11-16: "as in cash"); a major waits for a person. There is
+# commit proposed, as in the cash project; a major waits for a person. There is
 # no branch protection to make GitHub's auto-merge wait for CI, so this waits for the CI run of
 # the pull request's head itself, and merges that head and no other.
 on:

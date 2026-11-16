@@ -9,9 +9,9 @@ public sealed record EqPreset(string Name, IReadOnlyDictionary<int, int> StepsBy
 }
 
 /// <summary>
-/// The presets the owner chose after listening to each on an MR4.5 (2026-11-16). They come from
-/// the MR4.5's measurements: −3 dB at 60 Hz and an upper-bass hump at 120-150 Hz (Erin's Audio
-/// Corner), a mid-bass hump around 125 Hz and a dip at 2-3 kHz (ecoustics). See TODO.md.
+/// Presets chosen by listening on an MR4.5. They are based on the MR4.5's measurements: -3 dB at
+/// 60 Hz and an upper-bass hump at 120-150 Hz (Erin's Audio Corner), a mid-bass hump around
+/// 125 Hz and a dip at 2-3 kHz (ecoustics).
 /// </summary>
 public static class EqPresets
 {
@@ -19,8 +19,8 @@ public static class EqPresets
     public const string CustomName = "Custom";
 
     /// <summary>
-    /// How the list shows the user's own curve: "Custom" is only the speakers' sound mode (owner,
-    /// 2026-11-16).
+    /// How the list shows the user's own curve. "Custom" is the name of the speakers' sound mode,
+    /// so the curve gets a name of its own.
     /// </summary>
     public const string CustomLabel = "Your curve";
 

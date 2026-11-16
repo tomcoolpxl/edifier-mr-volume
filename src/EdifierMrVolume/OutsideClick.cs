@@ -7,8 +7,7 @@ namespace EdifierMrVolume;
 /// The panel also closes when Windows deactivates it, but Windows may refuse to activate it at all:
 /// the right to take the foreground "is lost the next time the user generates input"
 /// (SetForegroundWindow, Microsoft Learn). A panel that was never active is never deactivated, so
-/// it stayed open on clicks elsewhere (owner, 2026-11-16: "I click on the desktop, it doesn't go
-/// away"). Like TrayWheel, a low-level mouse hook on its own thread, as Microsoft asks for
+/// it stayed open on clicks elsewhere. Like TrayWheel, a low-level mouse hook on its own thread, as Microsoft asks for
 /// low-level hooks, and only while the panel is open, so the rest of the time no mouse input
 /// passes through this app. The hook only passes the click point on; the caller decides on the
 /// UI thread whether it was outside.

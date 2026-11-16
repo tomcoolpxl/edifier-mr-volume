@@ -28,8 +28,8 @@ from probe import NOTIFY_UUID, WRITE_UUID, build_v2, parse_v2  # noqa: E402
 APP_CODE = 0x0C
 FLAT = 6  # gain byte for 0 dB (range 0-12)
 
-# Changes from flat, in EQ steps (probably dB), by band frequency in Hz. Sources: TODO.md,
-# "Speaker facts for the EQ presets".
+# Changes from flat, in EQ steps (probably dB), by band frequency in Hz, based on the MR4.5's
+# published measurements (Erin's Audio Corner, ecoustics).
 PRESETS: dict[str, dict[int, int]] = {
     "flat": {},
     "deep": {62: +3, 125: -1},

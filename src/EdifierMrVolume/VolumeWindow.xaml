@@ -18,12 +18,12 @@
                 <Setter Property="IsTextSelectionEnabled" Value="True" />
                 <Setter Property="TextWrapping" Value="Wrap" />
             </Style>
-            <!-- The numbers under the room-tuning words (owner: everyday words, numbers in small print). -->
+            <!-- The numbers under the room-tuning words, in small print. -->
             <Style x:Key="SmallPrint" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextBlockStyle}">
                 <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
                 <Setter Property="TextWrapping" Value="Wrap" />
             </Style>
-            <!-- Icon buttons: about 32 x 32 (Microsoft's targeting guidance; review 2.14). -->
+            <!-- Icon buttons: about 32 x 32 (Microsoft's targeting guidance). -->
             <Style x:Key="IconButton" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
                 <Setter Property="Padding" Value="9" />
                 <Setter Property="Background" Value="Transparent" />
@@ -45,7 +45,7 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <!-- The status sits under the model name, so large text can't push the buttons out (review 2.10). -->
+            <!-- The status sits under the model name, so large text can't push the buttons out. -->
             <Grid ColumnSpacing="8">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -65,8 +65,7 @@
                         TextWrapping="Wrap"
                         Visibility="Collapsed" />
                 </StackPanel>
-                <!-- Owner's choice (2026-11-16): no confirmation, and the button stays as it is.
-                     The speakers come back on only with their own power button. -->
+                <!-- No confirmation. The speakers come back on only with their own power button. -->
                 <Button
                     x:Name="PowerButton"
                     Grid.Column="1"
@@ -92,7 +91,7 @@
                 </Button>
             </Grid>
 
-            <!-- Once, on first start: Windows may hide new notification-area icons (review 2.8). -->
+            <!-- Once, on first start: Windows may hide new notification-area icons. -->
             <InfoBar
                 x:Name="FirstRunBar"
                 Grid.Row="1"
@@ -107,7 +106,7 @@
                 </InfoBar.ActionButton>
             </InfoBar>
 
-            <!-- Why it isn't connected, when it isn't, with what to do about it (review 2.7). -->
+            <!-- Why it isn't connected, when it isn't, with what to do about it. -->
             <InfoBar
                 x:Name="ConnectionBar"
                 Grid.Row="2"
@@ -115,12 +114,12 @@
                 IsOpen="False"
                 IsClosable="False" />
 
-            <!-- Sound mode above the volume (owner, 2026-11-16). Segmented is the Toolkit's control
-                 for "a view or setting" with 2-5 choices (review 2.9); shown once the speaker has
-                 reported its mode. No visible label (owner: a "Sound" label beside it looked like a
-                 fourth choice); Narrator reads "Sound mode". One grid for both rows (owner: the
-                 choices start where the slider starts): the mode's light sits in the column of the
-                 speaker icon, the choices span the slider and the number. -->
+            <!-- Sound mode above the volume. Segmented is the Toolkit's control for "a view or setting"
+                 with 2-5 choices; shown once the speaker has reported its mode. No visible label,
+                 since a label beside it looked like a fourth choice; Narrator reads "Sound mode".
+                 One grid for both rows, so the choices start where the slider starts: the mode's
+                 light sits in the column of the speaker icon, the choices span the slider and the
+                 number. -->
             <Grid Grid.Row="3" ColumnSpacing="8" Padding="0,0,8,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
@@ -131,9 +130,9 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
-                <!-- The light the speaker shows for the mode: red, green or white (owner, 2026-11-16:
-                     a glowing LED, design A). The speaker icon's size, centred above it; its colours
-                     are set in ShowModeLight. A click picks the next mode (owner, 2026-11-16), so it
+                <!-- The light the speaker shows for the mode: red, green or white,
+                     as a glowing LED. The speaker icon's size, centred above it; its colours
+                     are set in ShowModeLight. A click picks the next mode, so it
                      is a Button, as Microsoft asks for an action: Enter and Space work too. Same
                      size and look as the mute button below it. -->
                 <Button
@@ -184,7 +183,7 @@
                         ToolTipService.ToolTip="Equalizer curve in Settings" />
                 </controls:Segmented>
 
-                <!-- A toggle, so Narrator says whether it is on (review 2.12). -->
+                <!-- A toggle, so Narrator says whether it is on. -->
                 <ToggleButton
                     x:Name="MuteButton"
                     Grid.Row="1"
@@ -261,7 +260,7 @@
                             Toggled="ShowOnKnobSwitch_Toggled" />
                         <controls:SettingsExpander.Items>
                             <controls:SettingsCard x:Name="HideAfterCard" Header="Close after" ContentAlignment="Vertical">
-                                <!-- One group, one Tab stop, named for Narrator (review 2.11). -->
+                                <!-- One group, one Tab stop, named for Narrator. -->
                                 <RadioButtons
                                     x:Name="HideAfterChoice"
                                     MaxColumns="4"
@@ -286,8 +285,7 @@
                             AutomationProperties.Name="Volume limit"
                             Toggled="LimitSwitch_Toggled" />
                         <controls:SettingsExpander.Items>
-                            <!-- A slider over the whole volume range, so it's clear what 24 is out of
-                                 (owner, 2026-11-16: "up to 24 of what?"). -->
+                            <!-- A slider over the whole volume range, so it's clear what 24 is out of. -->
                             <controls:SettingsCard
                                 x:Name="LimitCard"
                                 Header="Highest level"
@@ -387,7 +385,7 @@
                                 <Grid x:Name="EqBandsGrid" ColumnSpacing="8" HorizontalAlignment="Stretch">
                                     <!-- Lightweight styling: no accent fill from the left end, which
                                          made a cut look like a boost; the thumb and the ticks show
-                                         the step (review 2.16). -->
+                                         the step. -->
                                     <Grid.Resources>
                                         <ResourceDictionary>
                                             <ResourceDictionary.ThemeDictionaries>
@@ -423,7 +421,7 @@
                     </controls:SettingsExpander>
 
                     <!-- Room tuning (ConneX's "Acoustic Tuning") in everyday words, with the numbers
-                         in small print (owner, 2026-11-16). -->
+                         in small print. -->
                     <controls:SettingsExpander
                         x:Name="RoomExpander"
                         Header="Room"
@@ -510,7 +508,7 @@
                     </controls:SettingsCard>
 
                     <TextBlock Margin="4,12,0,4" Style="{StaticResource BodyStrongTextBlockStyle}" Text="Connection" />
-                    <!-- Also in the notification-area menu; here for keyboard and Narrator users (review 2.1). -->
+                    <!-- Also in the notification-area menu; here for keyboard and Narrator users. -->
                     <controls:SettingsCard
                         Header="Connect to speaker"
                         Description="Turn off to let the ConneX app connect.">
@@ -577,8 +575,7 @@
                     <!-- About: the only place the app icon appears inside the app (set in code). -->
                     <TextBlock Margin="4,12,0,4" Style="{StaticResource BodyStrongTextBlockStyle}" Text="About" />
                     <controls:SettingsExpander x:Name="AboutExpander" Header="Edifier MR Volume">
-                        <!-- The app icon larger than the Toolkit's 20 px for setting icons (owner,
-                             2026-11-16: "can you make the edifier icon larger?"). -->
+                        <!-- The app icon larger than the Toolkit's 20 px for setting icons. -->
                         <controls:SettingsExpander.Resources>
                             <x:Double x:Key="SettingsCardHeaderIconMaxSize">32</x:Double>
                         </controls:SettingsExpander.Resources>
@@ -602,7 +599,7 @@
                             <controls:SettingsCard
                                 Header="Unofficial"
                                 Description="Not affiliated with Edifier. MIT License." />
-                            <!-- Also in the notification-area menu; here for keyboard users (review 2.1). -->
+                            <!-- Also in the notification-area menu; here for keyboard users. -->
                             <controls:SettingsCard Header="Exit">
                                 <Button x:Name="ExitButton" Content="Exit" Click="ExitButton_Click" />
                             </controls:SettingsCard>

@@ -1,11 +1,11 @@
 using System.Drawing.Imaging;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using EdifierMrVolume.Core;
 using H.NotifyIcon;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using EdifierMrVolume.Core;
 using Windows.UI.ViewManagement;
 
 namespace EdifierMrVolume;
@@ -126,10 +126,11 @@ public partial class App : Application
 
     private void CreateTrayIcon()
     {
-        // Ticked while the app may hold the speaker's link (review 2.15: a command, not a state).
+        // Ticked while the app may hold the speaker's link (a command, not a state).
         _connectItem = new ToggleMenuFlyoutItem { Text = "Connect to speaker", Command = new RelayCommand(ToggleConnection) };
         _autostartItem = new ToggleMenuFlyoutItem { Text = "Start with Windows", Command = new RelayCommand(ToggleAutostart) };
-        // Owner's choice (2026-11-16): no confirmation, and it stays where it is.
+        // No confirmation: it is a deliberate menu choice, and the speakers' own power button
+        // turns them back on.
         _powerItem = new MenuFlyoutItem { Text = "Turn off speakers", IsEnabled = false, Command = new RelayCommand(() => _ = PowerOffAsync()) };
 
         var menu = new MenuFlyout();
@@ -156,7 +157,7 @@ public partial class App : Application
         // Efficiency mode would throttle the BLE polling that follows the knob.
         _tray.ForceCreate(enablesEfficiencyMode: false);
 
-        // Scroll wheel over the number: one step per notch (owner's request, 2026-11-16).
+        // Scroll wheel over the number: one step per notch.
         _wheel = new TrayWheel(_tray.TrayIcon.Id, notch => _ui.TryEnqueue(() => OnWheel(notch)));
         _tray.TrayIcon.MessageWindow.MouseEventReceived += (_, e) =>
         {
@@ -165,7 +166,7 @@ public partial class App : Application
         };
 
         // The keyboard (Win+B, the arrow keys, then Enter or Space, or Shift+F10 for the menu):
-        // H.NotifyIcon only reports these, so act on them here (review 2.1).
+        // H.NotifyIcon only reports these, so act on them here.
         _tray.TrayIcon.MessageWindow.KeyboardEventReceived += (_, e) =>
         {
             switch (e.KeyboardEvent)
@@ -183,7 +184,7 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// One wheel notch over the number: one step up or down, always (owner, 2026-11-16). A notch
+    /// One wheel notch over the number: one step up or down, always. A notch
     /// up never goes above the Volume limit; a notch down from above it (where the knob put it)
     /// is one step too, not a drop to the limit.
     /// </summary>
@@ -298,7 +299,7 @@ public partial class App : Application
 
     /// <summary>
     /// White digits on a dark taskbar, black on a light one; greyed out while not connected. In a
-    /// contrast theme, the theme's own text colours (review 2.6).
+    /// contrast theme, the theme's own text colours.
     /// </summary>
     private static System.Drawing.Color IconColor(bool dimmed)
     {

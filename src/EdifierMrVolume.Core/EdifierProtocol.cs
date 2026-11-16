@@ -80,7 +80,7 @@ public static class EdifierProtocol
 
     /// <summary>
     /// Switches the sound mode, echoing the speaker's own six tuning bytes unchanged. Building the
-    /// payload any other way changed the room tuning in a test (see TODO.md), so this refuses
+    /// payload any other way changed the room tuning in a test, so this refuses
     /// anything but exactly the reported bytes.
     /// </summary>
     public static byte[] SetSoundMode(SoundState current, int mode)

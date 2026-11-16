@@ -1,5 +1,3 @@
-using EdifierMrVolume.Core;
-
 namespace EdifierMrVolume.Core.Tests;
 
 /// <summary>Byte sequences captured from a real MR4.5 on 2026-11-15.</summary>
@@ -114,7 +112,7 @@ public class EdifierProtocolTests
         Assert.Throws<ArgumentException>(() => EdifierProtocol.SetSoundMode(new EdifierProtocol.SoundState(0, [2, 0, 0x1E]), 1));
     }
 
-    /// <summary>The owner's MR4.5: 30 Hz at 24 dB per octave, 0 dB space, desktop control on.</summary>
+    /// <summary>A tested MR4.5: 30 Hz at 24 dB per octave, 0 dB space, desktop control on.</summary>
     [Fact]
     public void Room_tuning_decodes_from_the_sound_mode_reply()
     {
