@@ -54,13 +54,26 @@ Speaker:
 - [x] Volume limit (setting; caps what the app sets, not the knob). *Tested on the speaker: limit 6,
       slider asked for 8, speaker went to 6. Switched back off.*
 - [ ] Power-off: **a right-click menu item and a button in the panel, no confirmation** (owner's
-      choice, 2026-11-16)
+      choice, 2026-11-16). *Built 2026-11-16: power button left of the gear and "Switch speakers
+      off" in the right-click menu, both enabled only while connected; after a power-off the
+      panel says "Switched off. Switch the speakers on with their power button; the app
+      reconnects by itself." Checked: the button shows and is enabled when connected. Not yet
+      pressed in the app (it switches the speakers off; the command itself was tested with the
+      probe). The owner can try it any time.*
 - [ ] **Switch the speakers off when the PC goes to sleep** (owner's own idea; setting, off by
       default). *Built (setting in Power; Windows' suspend callback sends the power-off); must be
       tested with a real sleep.*
-- [ ] **Equalizer**, in settings as an expander (owner's choice, 2026-11-16), not in the main
-      panel. *Writing one band tested and restored (see protocol facts).*
-- [ ] **Equalizer presets** (owner, 2026-11-16): "create 2 or 3 presets, and because the bass is
+- [x] **Equalizer**, in settings as an expander (owner's choice, 2026-11-16), not in the main
+      panel. *Done 2026-11-16: Settings › Sound › Equalizer: preset ComboBox (Deep bass, Balanced,
+      Deep + balanced, Custom) and 9 horizontal band sliders (horizontal because the page scrolls
+      vertically, per Microsoft's slider guidance), steps −6 to +6. Choosing a preset or moving a
+      band switches the speakers to Custom mode; moving a band makes it the Custom curve, which
+      the app keeps (the speaker has one custom curve). The app reads the curve once per
+      connection (no polling) and writes only the bands that change, each after the previous
+      ack. Tested on the MR4.5 through UI Automation: Balanced (1 band, 0.26 s), Custom (the
+      owner's +4/+5/+4/+2, 5 bands), Deep + balanced (5 bands); the panel showed the speaker's
+      read-back each time and the owner's Custom curve stayed intact.* *Writing one band tested and restored (see protocol facts).*
+- [x] **Equalizer presets** (owner, 2026-11-16): "create 2 or 3 presets, and because the bass is
       not good, and there's already a sound profile, but I want something with proper bass, but I
       don't know how to do that. So 2 or 3 presets for the user to choose from, plus custom."
       Research how to shape bass for a 4.5" monitor first (sources), propose the curves, let the
@@ -77,7 +90,8 @@ Speaker:
       2 kHz +2), Deep + balanced (62 Hz +3, 125 Hz −2, 2 kHz +2) — plus Custom. Deep + balanced was
       left on the speaker as its Custom curve (owner's choice); the owner's previous curve (+4/+5/+4/+2
       at 62/125/250/500 Hz) is kept in `~/.edifier-eq-backup.json` and can be put back with
-      `eq_audition.py restore`. Still to build in the app.*
+      `eq_audition.py restore`. Built in the app (see Equalizer); the owner's previous curve is
+      the app's Custom curve.*
 - [ ] **Auto-standby**: investigate the protocol. *2026-11-16: `0xD3` reads a timer (`00 00` =
       off); `0xD1 00 01` set it to 1 minute (read back `00 01`), `0xD2` switched it off again (read
       back `00 00`). Owner asked why 20 minutes: it was an arbitrary example; the test used 1
@@ -88,6 +102,18 @@ Convenience:
 - [x] Mute (click the speaker symbol; click again restores). *Tested: 7 → 0 → 7.*
 - [x] Start volume (setting; set a level when the app connects; off by default). *Tested: start 5,
       Reconnect, the app set 6 → 5 on connecting. Switched back off.*
+- [ ] **Scroll wheel over the notification-area number changes the volume, one step per notch**
+      (owner, 2026-11-16: "If I hover over the taskbar thing, the scroll wheel of the mouse should
+      control the volume one by one. Be careful that I don't, you know. But there is a limit.").
+      One step per wheel notch, never more; the Volume limit applies. Check online how Windows
+      apps do this and keep it light (the app runs all the time); measure CPU after.
+      *Built 2026-11-16 the way VolumeScroller does it (low-level mouse hook +
+      Shell_NotifyIconGetRect), but the hook exists only while the pointer is over the number:
+      the icon's own pointer-move report installs it, leaving the icon removes it. A notch up
+      never lowers the volume (when the knob has it above the limit); touchpad scrolls add up to
+      a full notch. Checked: hovering installs the hook with the icon's exact position. Not yet
+      checked: a real scroll changing the volume (my injected wheel events were dropped by the
+      sandbox or landed while the owner moved the mouse). The owner tries it by hand.*
 - [x] First-run hint (where to switch the notification-area icon on; once). *Tested: shown on the
       first start of the new build, then marked done in settings.json.*
 
@@ -102,7 +128,11 @@ guidelines"):
 - [x] Lightweight check again after the speaker features change the connection loop. *2026-11-16,
       with the sound mode read every 5 s: 312 ms CPU per 60 s = 0.52 % of one core = 0.03 % of the
       PC; 73 MB private memory, 30 threads. Still light.*
-- [ ] Lightweight check after the equalizer and power-off work
+- [x] Lightweight check after the equalizer, power-off and wheel work. *2026-11-16: connected
+      and idle, 48 ms CPU in 30 s (about 0.1 s a minute, 0.01 % of the PC), lower than before
+      (312 ms a minute). Two earlier windows measured 1.2 and 2.3 s a minute while the owner used
+      the panel: the busy thread started with the panel window at 01:17:05. The wheel hook's
+      thread was gone after the pointer left the number (no thread from 01:17:04 alive).*
 - [x] **Settings per Microsoft's WinUI guidance**: SettingsCard / SettingsExpander from the Windows
       Community Toolkit, BodyStrong section headers, disabled cards say why, About as an expander
       at the bottom with name, icon, version and links
@@ -174,7 +204,8 @@ Offered and not chosen; listed so they don't silently disappear:
   −10 dB at 44 Hz, upper-bass emphasis 120-150 Hz, recession 2-3 kHz, compression from 96 dB
   mostly in the bass. Heard ([ecoustics](https://www.ecoustics.com/reviews/edifier-mr4-5/)): rolls
   off around 45 Hz, mid-bass hump around 125 Hz, would like more 10-80 Hz and 2-3 kHz.
-  EQ bands 62/125/250/500 Hz/1/2/4/8/16 kHz, gain byte 0-12 with 6 = flat (probably 1 dB steps,
+  EQ bands 62/125/250/500 Hz/1/2/4/8/16 kHz, gain byte 0-12 with 6 = flat (steps, unit not published: Edifier's EQ
+  pages, the reviews and the app store pages don't give it; the app shows steps, not dB;
   not confirmed). The owner's speaker now: Custom curve "Sound Effects" = +4/+5/+4/+2 at
   62/125/250/500 Hz, which boosts exactly the measured hump; room settings low cut 30 Hz
   −24 dB/oct, acoustic space 0 dB, desktop control on.
