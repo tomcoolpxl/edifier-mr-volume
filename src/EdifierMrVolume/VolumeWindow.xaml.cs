@@ -517,13 +517,16 @@ public sealed partial class VolumeWindow : Window
     private void UpdateSoundMode(EdifierProtocol.SoundState? sound)
     {
         var visibility = sound is null ? Visibility.Collapsed : Visibility.Visible;
-        if (ModeRow.Visibility != visibility) ModeRow.Visibility = visibility;
+        if (ModeBar.Visibility != visibility) ModeBar.Visibility = visibility;
+        if (ModeLedButton.Visibility != visibility) ModeLedButton.Visibility = visibility;
         if (sound is null) return;
         // A mode this app doesn't know: show none, and don't let focus or the arrow keys pick
         // one and send it (review 2.9).
         var known = sound.Mode >= 0 && sound.Mode < ModeBar.Items.Count;
         ModeBar.IsEnabled = known;
+        ModeLedButton.IsEnabled = known;
         var index = known ? sound.Mode : -1;
+        ShowModeLight(index);
         if (ModeBar.SelectedIndex == index) return;
         _updatingMode = true;
         try
@@ -534,6 +537,56 @@ public sealed partial class VolumeWindow : Window
         {
             _updatingMode = false;
         }
+    }
+
+    private int _modeLight = int.MinValue;
+
+    /// <summary>
+    /// The LED left of the choices takes the colour of the speaker's own light: red for Monitor,
+    /// green for Music, white for Custom; hidden for a mode this app doesn't know. A lit dot with
+    /// a soft glow (owner, 2026-11-16: design A of four).
+    /// </summary>
+    private void ShowModeLight(int mode)
+    {
+        if (mode == _modeLight) return;
+        _modeLight = mode;
+        Windows.UI.Color? light = mode switch
+        {
+            0 => Microsoft.UI.ColorHelper.FromArgb(255, 255, 59, 48),
+            1 => Microsoft.UI.ColorHelper.FromArgb(255, 48, 209, 88),
+            2 => Microsoft.UI.ColorHelper.FromArgb(255, 245, 247, 250),
+            _ => null,
+        };
+        if (light is not { } c)
+        {
+            ModeLed.Opacity = 0;
+            ToolTipService.SetToolTip(ModeLedButton, null);
+            return;
+        }
+        ModeLed.Opacity = 1;
+        // Says what a click does: the mode it goes to.
+        var next = ModeBar.Items[(mode + 1) % ModeBar.Items.Count] is SegmentedItem { Content: string name } ? name : null;
+        ToolTipService.SetToolTip(ModeLedButton, next is null ? null : $"Next: {next}");
+        AutomationProperties.SetName(ModeLedButton, next is null ? "Next sound mode" : $"Next sound mode: {next}");
+        // The glow fades as (1 - distance)² from 55 % at the centre, as in the approved picture.
+        var glow = new RadialGradientBrush();
+        foreach (var (offset, alpha) in new[] { (0.0, 140), (0.44, 44), (0.7, 13), (1.0, 0) })
+            glow.GradientStops.Add(new GradientStop { Offset = offset, Color = Microsoft.UI.ColorHelper.FromArgb((byte)alpha, c.R, c.G, c.B) });
+        LedGlow.Fill = glow;
+        // The lit core is a quarter of the way to white.
+        LedCore.Fill = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255,
+            (byte)(c.R + (255 - c.R) / 4), (byte)(c.G + (255 - c.G) / 4), (byte)(c.B + (255 - c.B) / 4)));
+        LedCore.StrokeThickness = mode == 2 ? 1 : 0;
+    }
+
+    /// <summary>
+    /// A click on the LED picks the next mode: Monitor, Music, Custom, then Monitor again (owner,
+    /// 2026-11-16). It selects it in the choices, which send it as a click on the choice would.
+    /// </summary>
+    private void ModeLedButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!ModeBar.IsEnabled || ModeBar.SelectedIndex < 0) return;
+        ModeBar.SelectedIndex = (ModeBar.SelectedIndex + 1) % ModeBar.Items.Count;
     }
 
     private void ModeBar_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -865,8 +918,9 @@ public sealed partial class VolumeWindow : Window
                 _bandRows[i].Slider.Value = steps[i];
                 _bandRows[i].Value.Text = StepsLabel(steps[i]);
             }
-            ToolTipService.SetToolTip(ModeCustom,
-                $"Plays the equalizer curve ({label}). Change it in Settings › Sound. White light on the speaker.");
+            // Short, not a sentence; the curve on its own line; Settings, the app's view, with a
+            // capital (owner, 2026-11-16).
+            ToolTipService.SetToolTip(ModeCustom, $"Equalizer curve in Settings:\n{label}");
         }
         finally
         {

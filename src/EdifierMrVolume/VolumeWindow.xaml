@@ -43,7 +43,6 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <!-- The status sits under the model name, so large text can't push the buttons out (review 2.10). -->
@@ -116,52 +115,79 @@
                 IsOpen="False"
                 IsClosable="False" />
 
-            <!-- Sound mode, above the volume (owner, 2026-11-16). Segmented is the Toolkit's
-                 control for "a view or setting" with 2-5 choices (review 2.9). Shown once the
-                 speaker has reported its mode. -->
-            <Grid x:Name="ModeRow" Grid.Row="3" ColumnSpacing="12" Padding="0,0,8,4" Visibility="Collapsed">
+            <!-- Sound mode above the volume (owner, 2026-11-16). Segmented is the Toolkit's control
+                 for "a view or setting" with 2-5 choices (review 2.9); shown once the speaker has
+                 reported its mode. No visible label (owner: a "Sound" label beside it looked like a
+                 fourth choice); Narrator reads "Sound mode". One grid for both rows (owner: the
+                 choices start where the slider starts): the mode's light sits in the column of the
+                 speaker icon, the choices span the slider and the number. -->
+            <Grid Grid.Row="3" ColumnSpacing="8" Padding="0,0,8,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBlock
-                    x:Name="ModeLabel"
-                    Style="{StaticResource BodyTextBlockStyle}"
-                    Text="Sound"
-                    VerticalAlignment="Center" />
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <!-- The light the speaker shows for the mode: red, green or white (owner, 2026-11-16:
+                     a glowing LED, design A). The speaker icon's size, centred above it; its colours
+                     are set in ShowModeLight. A click picks the next mode (owner, 2026-11-16), so it
+                     is a Button, as Microsoft asks for an action: Enter and Space work too. Same
+                     size and look as the mute button below it. -->
+                <Button
+                    x:Name="ModeLedButton"
+                    Margin="0,0,0,8"
+                    Padding="7"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Visibility="Collapsed"
+                    AutomationProperties.Name="Next sound mode"
+                    Click="ModeLedButton_Click">
+                    <Grid x:Name="ModeLed" Width="18" Height="18">
+                        <Ellipse x:Name="LedGlow" />
+                        <!-- The edge shows only for the white light, which a light background would hide. -->
+                        <Ellipse
+                            x:Name="LedCore"
+                            Width="8"
+                            Height="8"
+                            Stroke="{ThemeResource ControlStrongStrokeColorDefaultBrush}"
+                            StrokeThickness="0" />
+                    </Grid>
+                </Button>
                 <controls:Segmented
                     x:Name="ModeBar"
                     Grid.Column="1"
+                    Grid.ColumnSpan="2"
+                    Margin="0,0,0,8"
                     HorizontalAlignment="Stretch"
+                    Visibility="Collapsed"
                     AutomationProperties.Name="Sound mode"
                     SelectionChanged="ModeBar_SelectionChanged">
                     <controls:SegmentedItem
                         x:Name="ModeMonitor"
                         Content="Monitor"
                         Tag="0"
-                        ToolTipService.ToolTip="Neutral, as recorded. Red light on the speaker." />
+                        ToolTipService.ToolTip="Neutral, as recorded" />
                     <controls:SegmentedItem
                         x:Name="ModeMusic"
                         Content="Music"
                         Tag="1"
-                        ToolTipService.ToolTip="Warmer, with more mid-bass. Green light on the speaker." />
+                        ToolTipService.ToolTip="Warmer, with more mid-bass" />
                     <controls:SegmentedItem
                         x:Name="ModeCustom"
                         Content="Custom"
                         Tag="2"
-                        ToolTipService.ToolTip="Plays the equalizer curve. White light on the speaker." />
+                        ToolTipService.ToolTip="Equalizer curve in Settings" />
                 </controls:Segmented>
-            </Grid>
 
-            <Grid Grid.Row="4" ColumnSpacing="8" Padding="0,0,8,0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
                 <!-- A toggle, so Narrator says whether it is on (review 2.12). -->
                 <ToggleButton
                     x:Name="MuteButton"
+                    Grid.Row="1"
                     Padding="7"
                     Background="Transparent"
                     BorderThickness="0"
@@ -173,6 +199,7 @@
                 </ToggleButton>
                 <Slider
                     x:Name="VolumeSlider"
+                    Grid.Row="1"
                     Grid.Column="1"
                     Minimum="0"
                     Maximum="30"
@@ -185,13 +212,14 @@
                     ValueChanged="VolumeSlider_ValueChanged" />
                 <TextBlock
                     x:Name="VolumeText"
+                    Grid.Row="1"
                     Grid.Column="2"
                     MinWidth="30"
                     Style="{StaticResource SubtitleTextBlockStyle}"
                     Text="–"
                     TextAlignment="Right"
                     VerticalAlignment="Center" />
-            </Grid>
+        </Grid>
         </Grid>
 
         <!-- Settings, diagnostics and About, behind the gear button. -->
