@@ -51,6 +51,8 @@ public sealed partial class VolumeWindow : Window
     private readonly AppSettings _settings;
     private readonly WindowCommands _commands;
     private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _peekTimer;
+    private readonly OutsideClick _outsideClick;
+    private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _focusCheck;
     private bool _updatingFromSpeaker;
     private bool _loadingSettings;
     private bool _settingsOpen;
@@ -97,6 +99,19 @@ public sealed partial class VolumeWindow : Window
         };
 
         Activated += OnActivated;
+        _outsideClick = new OutsideClick((x, y) => DispatcherQueue.TryEnqueue(() => OnClickSomewhere(x, y)));
+        _focusCheck = DispatcherQueue.CreateTimer();
+        _focusCheck.IsRepeating = false;
+        _focusCheck.Interval = TimeSpan.FromMilliseconds(500);
+        _focusCheck.Tick += (_, _) =>
+        {
+            if (!AppWindow.IsVisible || _peeking) return;
+            var front = NativeMethods.GetForegroundWindow();
+            NativeMethods.GetWindowThreadProcessId(front, out var frontProcess);
+            Log.Write(frontProcess == (uint)Environment.ProcessId || _activatedSinceShow
+                ? "Panel opened with the focus."
+                : "Panel opened, but Windows kept another app in front; a click outside closes it.");
+        };
         AppWindow.Closing += (_, e) =>
         {
             if (_exiting) return;
@@ -140,12 +155,37 @@ public sealed partial class VolumeWindow : Window
         Place();
         AppWindow.Show();
         Activate();
-        var focus = keyboard ? FocusState.Keyboard : FocusState.Programmatic;
+        // Close on a click outside even if Windows refused to make the panel active.
+        _outsideClick.Start();
+        // Programmatic focus repeats the last input used inside the panel, so after a key press
+        // (or before any click) a mouse-opened panel showed the keyboard focus frame. Microsoft:
+        // pass Pointer when focus follows a pointer action, Keyboard when it follows a key.
+        var focus = keyboard ? FocusState.Keyboard : FocusState.Pointer;
         if (_settingsOpen) BackButton.Focus(focus);
         else if (VolumeSlider.IsEnabled) VolumeSlider.Focus(focus);
         else SettingsButton.Focus(focus);
         // Measure again once the content is laid out for real.
         DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, Place);
+        // Half a second on, say in the log whether Windows let the panel take the focus.
+        _activatedSinceShow = false;
+        _focusCheck.Stop();
+        _focusCheck.Start();
+    }
+
+    private bool _activatedSinceShow;
+
+    /// <summary>
+    /// A click somewhere on screen while the panel is open: outside this app's windows (the
+    /// panel, its drop-downs and tooltips), close the panel.
+    /// </summary>
+    private void OnClickSomewhere(int x, int y)
+    {
+        if (!AppWindow.IsVisible || _peeking) return;
+        var window = NativeMethods.WindowFromPoint(new NativeMethods.POINT { X = x, Y = y });
+        NativeMethods.GetWindowThreadProcessId(window, out var processId);
+        if (processId == (uint)Environment.ProcessId) return;
+        Log.Write("Panel closed by a click outside.");
+        HideFlyout();
     }
 
     /// <summary>
@@ -171,6 +211,7 @@ public sealed partial class VolumeWindow : Window
     public void HideFlyout()
     {
         StopPeeking();
+        _outsideClick.Stop();
         AppWindow.Hide();
         _hiddenAt = Environment.TickCount64;
         if (_firstRunShown) MarkFirstRunDone();
@@ -184,6 +225,8 @@ public sealed partial class VolumeWindow : Window
     {
         _exiting = true;
         _peekTimer.Stop();
+        _focusCheck.Stop();
+        _outsideClick.Stop();
         Close();
     }
 
@@ -342,6 +385,7 @@ public sealed partial class VolumeWindow : Window
         }
         else
         {
+            _activatedSinceShow = true;
             // Clicked into a peeking panel: from now on it behaves like one opened by click.
             StopPeeking();
         }
@@ -1083,6 +1127,15 @@ internal static partial class NativeMethods
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static partial bool GetCursorPos(out POINT point);
+
+    [LibraryImport("user32.dll")]
+    internal static partial nint WindowFromPoint(POINT point);
+
+    [LibraryImport("user32.dll")]
+    internal static partial uint GetWindowThreadProcessId(nint window, out uint processId);
+
+    [LibraryImport("user32.dll")]
+    internal static partial nint GetForegroundWindow();
 
     [LibraryImport("user32.dll")]
     private static partial nint MonitorFromPoint(POINT point, uint flags);
