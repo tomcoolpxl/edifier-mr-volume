@@ -42,8 +42,16 @@ public sealed record SpeakerDiagnostics(
 /// </summary>
 public sealed class SpeakerConnection : IAsyncDisposable
 {
-    private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(500);
-    private static readonly TimeSpan SilenceTimeout = TimeSpan.FromSeconds(5);
+    /// <summary>
+    /// The speaker pushes every knob step and mode change by itself (seen on an MR4.5,
+    /// 2026-11-16, with nothing being asked), so the volume is only asked now and then, to notice
+    /// a dead link; it used to be asked every 0.5 s.
+    /// </summary>
+    private static readonly TimeSpan KeepAliveInterval = TimeSpan.FromSeconds(5);
+    /// <summary>The sound mode, asked as a safety net for a missed push.</summary>
+    private static readonly TimeSpan ModeInterval = TimeSpan.FromSeconds(30);
+    /// <summary>Three keep-alives without any answer: the link is gone.</summary>
+    private static readonly TimeSpan SilenceTimeout = TimeSpan.FromSeconds(16);
 
     /// <summary>
     /// How long Windows may report "disconnected" before we believe it. It sometimes does so
@@ -463,7 +471,7 @@ public sealed class SpeakerConnection : IAsyncDisposable
         return result.Characteristics[0];
     }
 
-    /// <summary>Runs while connected: polls the volume and sends pending volume requests.</summary>
+    /// <summary>Runs while connected: listens, sends pending requests and asks now and then.</summary>
     private async Task PumpAsync(CancellationToken ct)
     {
         Interlocked.Exchange(ref _lastRxTicks, Environment.TickCount64);
@@ -497,7 +505,7 @@ public sealed class SpeakerConnection : IAsyncDisposable
                 }
             }
 
-            var wait = nextPoll - Environment.TickCount64;
+            var wait = Math.Min(nextPoll, nextModePoll) - Environment.TickCount64;
             if (wait > 0) await _kick.WaitAsync(TimeSpan.FromMilliseconds(wait), ct).ConfigureAwait(false);
             if (ct.IsCancellationRequested || _linkSuspect) continue;
 
@@ -537,17 +545,17 @@ public sealed class SpeakerConnection : IAsyncDisposable
                 await WriteAsync(EdifierProtocol.BuildCommand(EdifierProtocol.CmdGetPowerSaving), ct).ConfigureAwait(false);
             }
 
-            // The sound mode changes rarely (button on the speaker, the phone app): every 5 s.
+            // The speaker pushes mode changes; this only catches a missed one.
             if (Environment.TickCount64 >= nextModePoll)
             {
                 await WriteAsync(EdifierProtocol.BuildCommand(EdifierProtocol.CmdGetSoundMode), ct).ConfigureAwait(false);
-                nextModePoll = Environment.TickCount64 + 5000;
+                nextModePoll = Environment.TickCount64 + (long)ModeInterval.TotalMilliseconds;
             }
 
             if (Environment.TickCount64 >= nextPoll)
             {
                 await WriteAsync(EdifierProtocol.GetVolume(), ct).ConfigureAwait(false);
-                nextPoll = Environment.TickCount64 + (long)PollInterval.TotalMilliseconds;
+                nextPoll = Environment.TickCount64 + (long)KeepAliveInterval.TotalMilliseconds;
             }
 
             if (Environment.TickCount64 - Interlocked.Read(ref _lastRxTicks) > SilenceTimeout.TotalMilliseconds)

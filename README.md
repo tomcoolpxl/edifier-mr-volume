@@ -148,7 +148,7 @@ DSP revision reportedly uses `…7c03…` instead of `…6303…`; the app tries
 
 | Command | Request | Reply on the MR4.5 | Used by the app |
 | --- | --- | --- | --- |
-| `0x66` get volume | `AA 0C 66 00 00 1C` | `BB EC 66 00 02 1E 13 40`: max 30, current 19. Polled every 0.5 s; follows every knob step | yes |
+| `0x66` get volume | `AA 0C 66 00 00 1C` | `BB EC 66 00 02 1E 13 40`: max 30, current 19. The speaker also pushes it on every knob step, so the app asks only every 5 s (keep-alive) | yes |
 | `0x67` set volume | `AA 0C 67 00 01 <level> <sum>` | ack `BB EC 67 00 01 01 10`, then a pushed `0x66` reply | yes |
 | `0xC6` firmware | `AA 0C C6 00 00 7C` | `01 00 00` = 1.0.0 | Diagnostics |
 | `0xC9` model name | `AA 0C C9 00 00 7F` | `EDIFIER MR4.5` (ASCII) | Diagnostics |
