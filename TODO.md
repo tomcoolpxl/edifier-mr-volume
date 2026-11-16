@@ -92,7 +92,7 @@ Speaker:
       at 62/125/250/500 Hz) is kept in `~/.edifier-eq-backup.json` and can be put back with
       `eq_audition.py restore`. Built in the app (see Equalizer); the owner's previous curve is
       the app's Custom curve.*
-- [ ] **Auto-standby**: investigate the protocol. *2026-11-16: `0xD3` reads a timer (`00 00` =
+- [x] **Auto-standby**: investigate the protocol. *2026-11-16: `0xD3` reads a timer (`00 00` =
       off); `0xD1 00 01` set it to 1 minute (read back `00 01`), `0xD2` switched it off again (read
       back `00 00`). Owner asked why 20 minutes: it was an arbitrary example; the test used 1
       minute. Still unknown: whether it is a shutdown timer or auto-standby on silence.
@@ -103,12 +103,40 @@ Speaker:
       is a **shutdown (sleep) timer** in minutes that switches the speakers off even while music
       plays, not auto-standby on silence. It is one-shot: after the owner switched the speakers
       back on (02:12:37), `0xD3` read `00 00` already; `0xD2` acked `01` and `0xD3` read `00 00`.
-      Offering the timer in the app is the owner's decision.*
+      Owner, 2026-11-16: **leave the timer out** of the app. Owner on auto-standby on silence,
+      tested by the owner earlier: "It fucking works. It's annoying." Owner: "This is either
+      already built in or we're going to build it in" — it is this item, so: **build a Power
+      saving switch** (Settings › Power). MR4.5 manual
+      ([ManualsLib](https://www.manualslib.com/manual/4579783/Edifier-Mr4-5.html)): "Power saving
+      mode", on by default; after 15 minutes without playback or operation the speaker goes to
+      power saving (Bluetooth device connected) or powers off (none connected); off via ConneX
+      "My Device" › "Power saving mode" or the knob (volume 0, double-press: one blink = off, two
+      = on); off uses more power. Needed: the BLE command for it. Checked in the session
+      transcript (2026-11-16): over BLE only `0xD7` (no reply) and the `0xD1`/`0xD2`/`0xD3` timer
+      were tested; power saving itself never was. Next: a read-only watcher (`0xD7`, `0xD8`,
+      `0xF2`, `0xD5`, `0xD3` before/after, plus every pushed frame) while the owner toggles
+      power saving with the knob.*
+      *Done 2026-11-16. The owner switched power saving with the knob while the watcher listened:
+      the speaker pushed `0xB1 01` (two blinks, on) and `0xB1 00` (one blink, off); nothing else
+      changed. Then: `0xB1` as a query answers `00`/`01`; `0xB2 01` set it on (the speaker
+      answers with the previous value, `00`; `0xB1` read `01`) and `0xB2 00` set it off (answer
+      `01`, read `00`). Built: Settings › Power › **Power saving** switch, showing the speaker's
+      own setting (read once per connection, follows the knob's push). Tested through UI
+      Automation: off → on (speaker confirmed in 0.15 s) → off. Power saving is **off** on the
+      owner's speakers now.*
 
 Convenience:
 - [x] Mute (click the speaker symbol; click again restores). *Tested: 7 → 0 → 7.*
 - [x] Start volume (setting; set a level when the app connects; off by default). *Tested: start 5,
       Reconnect, the app set 6 → 5 on connecting. Switched back off.*
+- [ ] **Investigate the room tuning** (owner, 2026-11-16: "investigate acoustic tuning and slope
+      and all this weird shit"): the six tuning bytes in the sound-mode reply (`0xD5` →
+      `[mode][index][byte0][lowCut][slope][space][desktop]`, now `02 00 1E 03 00 01`): low cut
+      (30 Hz), low-cut slope (−24 dB/oct), acoustic space compensation (0 dB, range 0 to −4 dB
+      per a review), desktop control (on), plus `index` and `byte0`. Find out what each does
+      and its values (manual, ConneX, reviews, measurements), and how ConneX sets them (EdifierControl
+      has `makeSetEq`/calibration code for this). Report before building anything; remember the
+      malformed-`0xC4` incident: writes only from the speaker's own bytes.
 - [ ] **Scroll wheel over the notification-area number changes the volume, one step per notch**
       (owner, 2026-11-16: "If I hover over the taskbar thing, the scroll wheel of the mouse should
       control the volume one by one. Be careful that I don't, you know. But there is a limit.").
@@ -226,6 +254,8 @@ Offered and not chosen; listed so they don't silently disappear:
   only ever echo the bytes the speaker reported, never typed ones.
 - Input `0x61` → `04 01`: input 1 of 4; set with `0x62`; mapping unknown.
 - Power off `0xCE`: works; no reply.
+- Power saving (standby after 15 min without sound): `0xB1` reads `[00 off | 01 on]` and is
+  pushed when the knob switches it; `0xB2 [00|01]` sets it and answers with the previous value.
 - Custom EQ `0x43`: 9 bands `[index][freqHi][freqLo][gain]`, gain 6 = flat. **Writing tested
   2026-11-16**: `0x44` + `[01][band][freqHi][freqLo][gain]` (5 bytes) raised 62 Hz from 10 to 11,
   acked `01`, read back 11; then set back to 10 and read back identical to before.
