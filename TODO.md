@@ -167,7 +167,9 @@ guidelines"):
       and idle, 48 ms CPU in 30 s (about 0.1 s a minute, 0.01 % of the PC), lower than before
       (312 ms a minute). Two earlier windows measured 1.2 and 2.3 s a minute while the owner used
       the panel: the busy thread started with the panel window at 01:17:05. The wheel hook's
-      thread was gone after the pointer left the number (no thread from 01:17:04 alive).*
+      thread was gone after the pointer left the number (no thread from 01:17:04 alive).
+      After the power saving switch (one extra read per connection): 141 ms CPU in 60 s
+      (0.015 % of the PC), 111 MB private memory. Still light.*
 - [x] **Settings per Microsoft's WinUI guidance**: SettingsCard / SettingsExpander from the Windows
       Community Toolkit, BodyStrong section headers, disabled cards say why, About as an expander
       at the bottom with name, icon, version and links
