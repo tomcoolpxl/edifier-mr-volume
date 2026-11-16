@@ -4,22 +4,21 @@ Open requests, in the owner's words where possible. Tick an item only when it is
 verified, with a note saying how. Before any question to the owner, every unticked item here is
 either offered or named as deliberately left out.
 
-## Waiting for the owner (after the night of 2026-11-16)
+## Decided by the owner (2026-11-16, morning)
 
-Decisions (each with context below):
-1. Which findings of the UX/UI review to fix ([docs/UX-REVIEW.md](docs/UX-REVIEW.md); 2 high, 8
-   medium, 13 low).
-2. Room tuning in the app (low cut, slope, acoustic space, desktop control) or not.
-3. Dependabot: let green patch/minor updates merge themselves, as in cash, or not.
-4. Install WinApp CLI (for the winui skills' sample search) or not.
-5. A release with all of this (one-click, patch or minor).
-6. Power saving is **on** on the speakers: switched on from the panel at 02:36 (not by me).
-   Intended?
-7. The Custom curve is now +5/−2/0/0/0/+2: a band was moved in the panel around 02:46 (not by
-   me or the review agent), which replaced +4/+5/+4/+2 (still in `~/.edifier-eq-backup.json`).
-   Keep it or put the old one back?
+1. UX/UI review: fix **all 23** findings ([docs/UX-REVIEW.md](docs/UX-REVIEW.md)).
+2. Room tuning: **show and change** in the app. Owner: "the tuning must use normal language
+   such as how far speakers are from a wall etc" — everyday words, not dB/Hz/slope.
+3. Dependabot: **auto-merge** green patch/minor updates, as in cash. *Done: see Project below.*
+4. **Install WinApp CLI**.
+5. Release: **1.1.0 after the fixes** (and after the owner's hand checks).
+6. Power saving: **switch it off**. *Done 12:21 from Settings › Power; the speakers read back
+   off (log: "Power saving: off."), and again after the app restarted.*
+7. Custom curve: **restore** the old one (62 Hz +4, 125 Hz +5, 250 Hz +4, 500 Hz +2). *Done
+   12:22: settings.json `CustomEq` = [4,5,4,2,0,0,0,0,0] with the app stopped; kept after the
+   restart. The speakers still play Deep + balanced.*
 
-Checks that need the owner at the speakers or the screen:
+Checks that need the owner at the speakers or the screen (owner: no preference yet):
 - The volume number follows the knob step by step with the lighter connection.
 - The scroll wheel over the number, by hand.
 - The power button and menu item (they switch the speakers off).
@@ -306,8 +305,9 @@ Project:
 - [x] Dependabot for NuGet packages and GitHub Actions. *Done 2026-11-16: `.github/dependabot.yml`,
       weekly, as in cash: NuGet (the three projects), the .NET SDK in global.json and the pinned
       Actions; patch and minor grouped per ecosystem, each major on its own; CI tests every pull
-      request. Not added: cash's automatic merge of green patch/minor updates (the owner chose it
-      for cash, not for this repo) — owner to decide.*
+      request. Owner, 2026-11-16: auto-merge "as in cash": `.github/workflows/dependabot-merge.yml`
+      (cash's, unchanged but for the comment; fetch-metadata v3.1.0 pinned commit checked on
+      GitHub) waits for CI on the pull request's head and squash-merges green patch/minor updates.*
 - [ ] README, screenshots (main panel, settings) and commits for all of the above
 - [ ] **Verify**: phone-app handover, wake from sleep, a real reboot with Start with Windows, the
       release zip in a clean folder; light theme and high contrast. *Release zip done 2026-11-16
