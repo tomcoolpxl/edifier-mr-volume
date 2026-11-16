@@ -596,18 +596,14 @@ public sealed partial class VolumeWindow : Window
     {
         LimitCard.IsEnabled = enabled;
         LimitCard.Description = enabled ? null! : "Turn on Volume limit to choose.";
-        LimitExpander.Description = enabled
-            ? $"The app won't set the volume above {_settings.VolumeLimit}. The knob on the speaker can still go higher."
-            : "The app won't set the volume above a level you choose. The knob on the speaker can still go higher.";
+        LimitExpander.Description = enabled ? $"Up to {_settings.VolumeLimit}. The knob isn't limited." : "The knob isn't limited.";
     }
 
     private void SetStartEnabled(bool enabled)
     {
         StartCard.IsEnabled = enabled;
         StartCard.Description = enabled ? null! : "Turn on Start volume to choose.";
-        StartExpander.Description = enabled
-            ? $"Sets the volume to {_settings.StartVolume} whenever the app connects to the speaker, for example at sign-in."
-            : "Sets a level whenever the app connects to the speaker, for example at sign-in.";
+        StartExpander.Description = enabled ? $"Sets {_settings.StartVolume} when the app connects." : "Sets a level when the app connects.";
     }
 
     private void HideAfter_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -657,8 +653,7 @@ public sealed partial class VolumeWindow : Window
         SaveSettings($"turn off when the PC sleeps = {_settings.PowerOffOnSleep}");
     }
 
-    private const string PowerSavingDescription =
-        "After 15 minutes without sound, the speakers go to standby. When this is off, they stay on and use more power. The knob changes this setting too.";
+    private const string PowerSavingDescription = "Standby after 15 minutes without sound.";
     private bool _updatingPowerSaving;
 
     /// <summary>Shows the speaker's power saving setting; disabled (and says why) until it is known.</summary>
@@ -715,8 +710,7 @@ public sealed partial class VolumeWindow : Window
     // ── Equalizer ──────────────────────────────────────────────────────
 
     private const string EqDescription = "Heard in Custom mode.";
-    private const string BandsUnlocked = "Steps up or down from flat (0).";
-    private const string BandsLocked = "Steps up or down from flat (0). Choose Your curve to change the bands.";
+    private const string BandsLocked = "Choose Your curve to change them.";
     private readonly List<(Slider Slider, TextBlock Value)> _bandRows = [];
     private bool _updatingEq;
     /// <summary>Steps this app asked for and the speaker hasn't reported yet; shown meanwhile.</summary>
@@ -771,7 +765,7 @@ public sealed partial class VolumeWindow : Window
             if (!Equals(PresetBox.SelectedItem, label)) PresetBox.SelectedItem = label;
             var own = choice == EqPresets.CustomName;
             EqBandsCard.IsEnabled = own;
-            EqBandsCard.Description = own ? BandsUnlocked : BandsLocked;
+            EqBandsCard.Description = own ? null! : BandsLocked;
             for (var i = 0; i < _bandRows.Count && i < steps.Length; i++)
             {
                 _bandRows[i].Slider.Value = steps[i];
@@ -902,7 +896,7 @@ public sealed partial class VolumeWindow : Window
         WallCard.IsEnabled = usable;
         BassCard.IsEnabled = usable;
         DeskCard.IsEnabled = usable;
-        RoomExpander.Description = usable ? "Adjusts the bass to where the speakers stand."
+        RoomExpander.Description = usable ? "Bass for where the speakers stand."
             : sound is null ? NotConnectedYet
             : "The speaker reports a room setting this app doesn't know. Change it in the Edifier app.";
         if (tuning is null)
@@ -928,7 +922,7 @@ public sealed partial class VolumeWindow : Window
             var bass = RoomPresets.MatchBass(tuning);
             var index = bass is null ? -1 : RoomPresets.Bass.ToList().IndexOf(bass);
             if (BassBox.SelectedIndex != index) BassBox.SelectedIndex = index;
-            BassCard.Description = $"{bass?.Description ?? "A setting made in the Edifier app."} {RoomPresets.BassNumbers(tuning)}.";
+            BassCard.Description = RoomPresets.BassNumbers(tuning);
             if (DeskSwitch.IsOn != tuning.Desktop) DeskSwitch.IsOn = tuning.Desktop;
         }
         finally

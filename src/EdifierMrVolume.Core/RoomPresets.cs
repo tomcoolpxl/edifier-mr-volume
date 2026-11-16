@@ -9,13 +9,13 @@ namespace EdifierMrVolume.Core;
 /// </summary>
 public static class RoomPresets
 {
-    public sealed record BassChoice(string Name, int LowCutHz, int Slope, string Description);
+    public sealed record BassChoice(string Name, int LowCutHz, int Slope);
 
     public static readonly IReadOnlyList<BassChoice> Bass =
     [
-        new("Full bass", 30, 3, "All the bass the speakers can play."),
-        new("Tighter bass", 50, 3, "Less boom, for a small room."),
-        new("Light bass", 80, 3, "Much less bass, for a room where it still booms."),
+        new("Full bass", 30, 3),
+        new("Tighter bass", 50, 3),
+        new("Light bass", 80, 3),
     ];
 
     /// <summary>The choice the speaker's low cut and slope are, or null when none matches.</summary>
@@ -24,11 +24,10 @@ public static class RoomPresets
 
     /// <summary>The small print under the words: "30 Hz, 24 dB per octave".</summary>
     public static string BassNumbers(EdifierProtocol.RoomTuning tuning) =>
-        $"Cuts below {tuning.LowCutHz} Hz, {tuning.SlopeDbPerOctave} dB per octave";
+        $"{tuning.LowCutHz} Hz, {tuning.SlopeDbPerOctave} dB per octave";
 
-    /// <summary>The small print for the wall slider: "Bass lowered by 2 dB".</summary>
-    public static string SpaceNumbers(int space) =>
-        space == 0 ? "Bass not lowered (0 dB)" : $"Bass lowered by {space} dB";
+    /// <summary>The small print for the wall slider: "0 dB", "−2 dB".</summary>
+    public static string SpaceNumbers(int space) => space == 0 ? "0 dB" : $"\u2212{space} dB";
 }
 
 /// <summary>What the app may set the volume to.</summary>

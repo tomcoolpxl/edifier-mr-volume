@@ -223,7 +223,7 @@
                     <controls:SettingsExpander
                         x:Name="AutoOpenExpander"
                         Header="Auto-open panel"
-                        Description="Opens this panel for a moment when you turn the knob on the speaker.">
+                        Description="Opens for a moment when you turn the knob.">
                         <controls:SettingsExpander.HeaderIcon>
                             <FontIcon Glyph="&#xE8A7;" />
                         </controls:SettingsExpander.HeaderIcon>
@@ -358,7 +358,7 @@
                     <controls:SettingsExpander
                         x:Name="RoomExpander"
                         Header="Room"
-                        Description="Adjusts the bass to where the speakers stand.">
+                        Description="Bass for where the speakers stand.">
                         <controls:SettingsExpander.HeaderIcon>
                             <FontIcon Glyph="&#xE80F;" />
                         </controls:SettingsExpander.HeaderIcon>
@@ -366,7 +366,6 @@
                             <controls:SettingsCard
                                 x:Name="WallCard"
                                 Header="Where the speakers stand"
-                                Description="Closer to a wall or corner: move it right, then listen."
                                 ContentAlignment="Vertical"
                                 IsEnabled="False">
                                 <StackPanel HorizontalAlignment="Stretch" Spacing="2">
@@ -404,7 +403,6 @@
                             <controls:SettingsCard
                                 x:Name="DeskCard"
                                 Header="On a desk"
-                                Description="Evens out the extra bass a desk under the speakers adds."
                                 IsEnabled="False">
                                 <ToggleSwitch
                                     x:Name="DeskSwitch"
@@ -417,7 +415,7 @@
                     <TextBlock Margin="4,12,0,4" Style="{StaticResource BodyStrongTextBlockStyle}" Text="Power" />
                     <controls:SettingsCard
                         Header="Turn off when the PC sleeps"
-                        Description="Turns the speakers off when Windows goes to sleep. You turn them back on with their own power button.">
+                        Description="Turn them back on with their power button.">
                         <controls:SettingsCard.HeaderIcon>
                             <FontIcon Glyph="&#xE7E8;" />
                         </controls:SettingsCard.HeaderIcon>
@@ -445,7 +443,7 @@
                     <!-- Also in the notification-area menu; here for keyboard and Narrator users (review 2.1). -->
                     <controls:SettingsCard
                         Header="Connect to speaker"
-                        Description="Turn this off to release the speaker, so another device such as the ConneX app can connect.">
+                        Description="Turn off to let the ConneX app connect.">
                         <controls:SettingsCard.HeaderIcon>
                             <FontIcon Glyph="&#xE702;" />
                         </controls:SettingsCard.HeaderIcon>
@@ -455,8 +453,7 @@
                             Toggled="ConnectSwitch_Toggled" />
                     </controls:SettingsCard>
                     <controls:SettingsCard
-                        Header="Start with Windows"
-                        Description="Starts the app when you sign in.">
+                        Header="Start with Windows">
                         <controls:SettingsCard.HeaderIcon>
                             <FontIcon Glyph="&#xE770;" />
                         </controls:SettingsCard.HeaderIcon>
@@ -513,7 +510,6 @@
                         <controls:SettingsExpander.Items>
                             <controls:SettingsCard
                                 Header="GitHub repository"
-                                Description="Source code, releases and the changelog."
                                 IsClickEnabled="True"
                                 Click="GitHubLink_Click">
                                 <controls:SettingsCard.ActionIcon>
@@ -522,7 +518,6 @@
                             </controls:SettingsCard>
                             <controls:SettingsCard
                                 Header="Report a problem"
-                                Description="Opens the bug report form on GitHub."
                                 IsClickEnabled="True"
                                 Click="ReportLink_Click">
                                 <controls:SettingsCard.ActionIcon>
@@ -531,11 +526,9 @@
                             </controls:SettingsCard>
                             <controls:SettingsCard
                                 Header="Unofficial"
-                                Description="Not affiliated with or endorsed by Edifier. MIT License." />
+                                Description="Not affiliated with Edifier. MIT License." />
                             <!-- Also in the notification-area menu; here for keyboard users (review 2.1). -->
-                            <controls:SettingsCard
-                                Header="Exit"
-                                Description="Closes the app. The volume number goes away until you start the app again.">
+                            <controls:SettingsCard Header="Exit">
                                 <Button x:Name="ExitButton" Content="Exit" Click="ExitButton_Click" />
                             </controls:SettingsCard>
                         </controls:SettingsExpander.Items>

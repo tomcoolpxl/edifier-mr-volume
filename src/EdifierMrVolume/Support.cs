@@ -38,7 +38,7 @@ internal sealed class AppSettings
 
     /// <summary>Set this level whenever the app connects to the speaker.</summary>
     public bool StartVolumeEnabled { get; set; }
-    public int StartVolume { get; set; } = 10;
+    public int StartVolume { get; set; } = 7;
 
     /// <summary>The one-time hint about Windows hiding new notification-area icons was shown.</summary>
     public bool FirstRunDone { get; set; }
