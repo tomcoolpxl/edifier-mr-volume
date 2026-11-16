@@ -110,7 +110,7 @@ public sealed partial class VolumeWindow : Window
             NativeMethods.GetWindowThreadProcessId(front, out var frontProcess);
             Log.Write(frontProcess == (uint)Environment.ProcessId || _activatedSinceShow
                 ? "Panel opened with the focus."
-                : "Panel opened, but Windows kept another app in front; a click outside closes it.");
+                : $"Panel opened, but Windows kept another app in front (SetForegroundWindow {(_broughtToFront ? "succeeded" : "refused")}); a click outside closes it.");
         };
         AppWindow.Closing += (_, e) =>
         {
@@ -151,10 +151,16 @@ public sealed partial class VolumeWindow : Window
 
     public void ShowFlyout(bool keyboard = false)
     {
+        _activatedSinceShow = false;
         StopPeeking();
         Place();
         AppWindow.Show();
         Activate();
+        // WinUI's Activate doesn't bring a window to the front while another app's window is in
+        // front (a known microsoft-ui-xaml issue; measured 2026-11-17: after a click on the
+        // number the panel never got the focus). Windows' own call does, and a click on a
+        // notification icon gives the icon's app the right to make it.
+        _broughtToFront = NativeMethods.SetForegroundWindow(Microsoft.UI.Win32Interop.GetWindowFromWindowId(AppWindow.Id));
         // Close on a click outside even if Windows refused to make the panel active.
         _outsideClick.Start();
         // Programmatic focus repeats the last input used inside the panel, so after a key press
@@ -167,12 +173,12 @@ public sealed partial class VolumeWindow : Window
         // Measure again once the content is laid out for real.
         DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, Place);
         // Half a second on, say in the log whether Windows let the panel take the focus.
-        _activatedSinceShow = false;
         _focusCheck.Stop();
         _focusCheck.Start();
     }
 
     private bool _activatedSinceShow;
+    private bool _broughtToFront;
 
     /// <summary>
     /// A click somewhere on screen while the panel is open: outside this app's windows (the
@@ -1190,6 +1196,10 @@ internal static partial class NativeMethods
 
     [LibraryImport("user32.dll")]
     internal static partial nint GetForegroundWindow();
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool SetForegroundWindow(nint window);
 
     [LibraryImport("user32.dll")]
     private static partial nint MonitorFromPoint(POINT point, uint flags);
