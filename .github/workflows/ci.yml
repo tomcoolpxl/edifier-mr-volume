@@ -35,6 +35,11 @@ jobs:
         with:
           global-json-file: global.json
 
+      # Code style from .editorconfig: layout, usings and naming. Run `dotnet format
+      # EdifierMrVolume.slnx` locally to fix what this finds.
+      - name: Check formatting
+        run: dotnet format EdifierMrVolume.slnx --verify-no-changes
+
       - name: Protocol tests
         run: dotnet test tests/EdifierMrVolume.Core.Tests -c Release --logger trx --results-directory TestResults
 
