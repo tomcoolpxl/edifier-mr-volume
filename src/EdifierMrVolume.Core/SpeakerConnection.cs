@@ -75,6 +75,8 @@ public sealed class SpeakerConnection : IAsyncDisposable
     private bool? _powerSaving;
     /// <summary>EQ steps to apply; only the latest request counts (slider drags).</summary>
     private int[]? _pendingEq;
+    /// <summary>Room tuning to apply; only the latest request counts.</summary>
+    private EdifierProtocol.RoomTuning? _pendingTuning;
     /// <summary>Set while a write waits for the speaker's reply to that command.</summary>
     private TaskCompletionSource? _replyWaiter;
     private byte _replyCommand;
@@ -138,6 +140,21 @@ public sealed class SpeakerConnection : IAsyncDisposable
         return true;
     }
 
+    /// <summary>
+    /// Sets the room tuning. Coalesced like the EQ (only the latest request counts), and the
+    /// packet is built when it is sent, from the speaker's latest bytes, so quick changes to two
+    /// controls never undo each other.
+    /// </summary>
+    public bool RequestRoomTuning(EdifierProtocol.RoomTuning tuning)
+    {
+        var current = SoundMode;
+        if (current is null || !tuning.IsValid || State != SpeakerState.Connected
+            || !EdifierProtocol.TryDecodeRoomTuning(current, out _)) return false;
+        Interlocked.Exchange(ref _pendingTuning, tuning);
+        Kick();
+        return true;
+    }
+
     /// <summary>The custom EQ curve as the speaker last reported it, or null.</summary>
     public EdifierProtocol.EqCurve? Equalizer { get { lock (_gate) return _eq; } }
 
@@ -172,7 +189,7 @@ public sealed class SpeakerConnection : IAsyncDisposable
 
     /// <summary>Shown while the speakers are off because this app switched them off.</summary>
     public const string SwitchedOffHint =
-        "Switched off. Switch the speakers on with their power button; the app reconnects by itself.";
+        "Turned off. Turn the speakers on with their power button; the app reconnects by itself.";
 
     /// <summary>
     /// Switches the speakers off right away (not queued), for the power-off button and for
@@ -259,21 +276,21 @@ public sealed class SpeakerConnection : IAsyncDisposable
     /// </summary>
     public void RequestVolume(int level)
     {
-        var max = Volume?.Max ?? EdifierProtocol.DefaultMaxVolume;
-        if (VolumeLimit is { } limit) max = Math.Min(max, limit);
-        Interlocked.Exchange(ref _pendingSet, Math.Clamp(level, 0, max));
+        var volume = Volume;
+        var max = volume?.Max ?? EdifierProtocol.DefaultMaxVolume;
+        Interlocked.Exchange(ref _pendingSet, VolumeRules.Clamp(level, volume?.Current ?? 0, max, VolumeLimit));
         Kick();
     }
 
     /// <summary>
-    /// The highest level <see cref="RequestVolume"/> will ever send, or null for no limit.
+    /// The level <see cref="RequestVolume"/> never raises the volume above, or null for no limit.
     /// The knob on the speaker is not limited.
     /// </summary>
     public int? VolumeLimit { get; set; }
 
     /// <summary>Shown when the speaker hasn't been found after a while.</summary>
     public const string NotFoundHint =
-        "Not found yet. Is the speaker switched on? Only one device can control it at a time, so close EDIFIER ConneX on your phone.";
+        "Not found yet. Are the speakers on? Only one device can control them at a time, so close EDIFIER ConneX on your phone.";
 
     private void SetHintIfStillSearching()
     {
@@ -352,7 +369,7 @@ public sealed class SpeakerConnection : IAsyncDisposable
                 lock (_gate)
                 {
                     _detail = ex.Message;
-                    _lastError = $"{DateTime.Now:HH:mm:ss} {ex.Message}";
+                    _lastError = $"{DateTime.Now.ToString("T", System.Globalization.CultureInfo.CurrentCulture)} {ex.Message}";
                 }
             }
             finally
@@ -523,8 +540,26 @@ public sealed class SpeakerConnection : IAsyncDisposable
             // One command at a time, each after the speaker has answered the previous one.
             while (_outbox.TryDequeue(out var queued))
             {
-                await WriteAndWaitAsync(queued, ct).ConfigureAwait(false);
+                if (await WriteAndWaitAsync(queued, ct).ConfigureAwait(false)) NoteSoundModeWritten(queued);
                 nextModePoll = Environment.TickCount64 + 400; // read the result back soon
+            }
+
+            if (Interlocked.Exchange(ref _pendingTuning, null) is { } tuning
+                && SoundMode is { } sound
+                && EdifierProtocol.TryDecodeRoomTuning(sound, out var tuningNow) && tuningNow != tuning)
+            {
+                var packet = EdifierProtocol.SetRoomTuning(sound, tuning);
+                if (await WriteAndWaitAsync(packet, ct).ConfigureAwait(false))
+                {
+                    NoteSoundModeWritten(packet);
+                    _log($"Room tuning set: {tuning.LowCutHz} Hz, {tuning.SlopeDbPerOctave} dB/oct, space {(tuning.Space == 0 ? "0" : $"−{tuning.Space}")} dB, desktop {(tuning.Desktop ? "on" : "off")}.");
+                }
+                else
+                {
+                    _log("Room tuning: no ack.");
+                }
+                nextModePoll = Environment.TickCount64 + 400; // read the result back soon
+                continue;
             }
 
             if (Interlocked.Exchange(ref _pendingEq, null) is { } steps)
@@ -590,6 +625,18 @@ public sealed class SpeakerConnection : IAsyncDisposable
             _log($"EQ: {written} band(s) set.");
             await WriteAsync(EdifierProtocol.BuildCommand(EdifierProtocol.CmdGetEq), ct).ConfigureAwait(false);
         }
+    }
+
+    /// <summary>
+    /// After an acked sound-mode write (mode switch or room tuning), keep our copy as written
+    /// until the speaker's push arrives, so the next write starts from it and doesn't undo it.
+    /// </summary>
+    private void NoteSoundModeWritten(byte[] packet)
+    {
+        if (packet.Length != 13 || packet[2] != EdifierProtocol.CmdSetSoundMode) return;
+        var written = new EdifierProtocol.SoundState(packet[5], packet[6..12]);
+        lock (_gate) _sound = written;
+        StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Writes a command and waits (up to 1.5 s) for the speaker's reply to it.</summary>
@@ -719,6 +766,7 @@ public sealed class SpeakerConnection : IAsyncDisposable
         Interlocked.Exchange(ref _pendingSet, -1);
         while (_outbox.TryDequeue(out _)) { } // a mode switch for a link that's gone is stale
         Interlocked.Exchange(ref _pendingEq, null);
+        Interlocked.Exchange(ref _pendingTuning, null);
         lock (_gate)
         {
             _volume = null;

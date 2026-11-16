@@ -90,6 +90,61 @@ public static class EdifierProtocol
         return BuildCommand(CmdSetSoundMode, [(byte)mode, .. current.Tuning]);
     }
 
+    /// <summary>
+    /// Room tuning (ConneX "Acoustic Tuning"), the last four of the six bytes after the mode:
+    /// low cut in Hz (20-100, 5 Hz steps), its slope (0-3 = 6/12/18/24 dB per octave), acoustic
+    /// space (0-4 = 0 to −4 dB, middle of the room to a corner) and desktop control (0/1). From
+    /// the MR4.5 manual (section 8), omarchy-edifier-mr5 and EdifierControl; see README.md.
+    /// </summary>
+    public sealed record RoomTuning(int LowCutHz, int Slope, int Space, bool Desktop)
+    {
+        public const int MinLowCutHz = 20;
+        public const int MaxLowCutHz = 100;
+        public const int LowCutStepHz = 5;
+        public const int MaxSlope = 3;
+        public const int MaxSpace = 4;
+
+        /// <summary>6, 12, 18 or 24.</summary>
+        public int SlopeDbPerOctave => 6 * (Slope + 1);
+
+        public bool IsValid =>
+            LowCutHz is >= MinLowCutHz and <= MaxLowCutHz && LowCutHz % LowCutStepHz == 0
+            && Slope is >= 0 and <= MaxSlope && Space is >= 0 and <= MaxSpace;
+    }
+
+    /// <summary>
+    /// Reads the room tuning from a sound-mode reply. False for anything outside the known
+    /// values, or with the DSP-reset byte set, so such bytes are never taken as a base to write.
+    /// </summary>
+    public static bool TryDecodeRoomTuning(SoundState sound, out RoomTuning tuning)
+    {
+        tuning = null!;
+        var t = sound.Tuning;
+        if (t.Length != 6 || t[1] != 0 || t[5] > 1) return false;
+        var decoded = new RoomTuning(t[2], t[3], t[4], t[5] == 1);
+        if (!decoded.IsValid) return false;
+        tuning = decoded;
+        return true;
+    }
+
+    /// <summary>
+    /// Sets the room tuning: the speaker's own mode, index and DSP byte are echoed, and only the
+    /// four tuning values are replaced, each checked against its range. Refuses when the speaker's
+    /// reply isn't understood (see TryDecodeRoomTuning) or a value is out of range.
+    /// </summary>
+    public static byte[] SetRoomTuning(SoundState current, RoomTuning tuning)
+    {
+        if (!TryDecodeRoomTuning(current, out _))
+            throw new ArgumentException("The speaker's tuning bytes aren't understood; not writing.", nameof(current));
+        if (current.Mode < 0 || current.Mode >= SoundModeNames.Count) throw new ArgumentOutOfRangeException(nameof(current));
+        if (!tuning.IsValid) throw new ArgumentOutOfRangeException(nameof(tuning));
+        return BuildCommand(CmdSetSoundMode,
+        [
+            (byte)current.Mode, current.Tuning[0], current.Tuning[1],
+            (byte)tuning.LowCutHz, (byte)tuning.Slope, (byte)tuning.Space, (byte)(tuning.Desktop ? 1 : 0),
+        ]);
+    }
+
     public static byte[] PowerOff() => BuildCommand(CmdPowerOff);
 
     /// <summary>

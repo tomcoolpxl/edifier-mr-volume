@@ -114,6 +114,80 @@ public class EdifierProtocolTests
         Assert.Throws<ArgumentException>(() => EdifierProtocol.SetSoundMode(new EdifierProtocol.SoundState(0, [2, 0, 0x1E]), 1));
     }
 
+    /// <summary>The owner's MR4.5: 30 Hz at 24 dB per octave, 0 dB space, desktop control on.</summary>
+    [Fact]
+    public void Room_tuning_decodes_from_the_sound_mode_reply()
+    {
+        var frame = Assert.Single(EdifierProtocol.ParseFrames(Bytes("BB EC D5 00 07 00 02 00 1E 03 00 01 A7")));
+        Assert.True(EdifierProtocol.TryDecodeSoundMode(frame, out var state));
+        Assert.True(EdifierProtocol.TryDecodeRoomTuning(state, out var tuning));
+        Assert.Equal(new EdifierProtocol.RoomTuning(30, 3, 0, true), tuning);
+        Assert.Equal(24, tuning.SlopeDbPerOctave);
+        Assert.Equal("Full bass", RoomPresets.MatchBass(tuning)?.Name);
+    }
+
+    /// <summary>
+    /// Space −2 dB from Custom mode: mode, index and DSP byte echoed. The payload is the one
+    /// omarchy-edifier-mr5 read back after ConneX set 30 Hz / −24 dB/oct / −2 dB / desktop on.
+    /// </summary>
+    [Fact]
+    public void Setting_room_tuning_echoes_mode_index_and_dsp_byte()
+    {
+        var custom = new EdifierProtocol.SoundState(2, Bytes("02 00 1E 03 00 01"));
+        Assert.Equal(Bytes("AA 0C C4 00 07 02 02 00 1E 03 02 01 A9"),
+            EdifierProtocol.SetRoomTuning(custom, new EdifierProtocol.RoomTuning(30, 3, 2, true)));
+        var monitor = new EdifierProtocol.SoundState(0, Bytes("02 00 1E 03 00 01"));
+        Assert.Equal(Bytes("AA 0C C4 00 07 00 02 00 50 03 00 00 D6"),
+            EdifierProtocol.SetRoomTuning(monitor, new EdifierProtocol.RoomTuning(80, 3, 0, false)));
+    }
+
+    /// <summary>
+    /// What the speaker held after the malformed write (low cut 3, slope 0, space 1, desktop 0xA5),
+    /// and the DSP-reset byte, are never taken as a base to write from.
+    /// </summary>
+    [Theory]
+    [InlineData("02 00 03 00 01 A5")]
+    [InlineData("02 01 1E 03 00 01")]
+    [InlineData("02 00 1E 04 00 01")]
+    [InlineData("02 00 1E 03 05 01")]
+    [InlineData("02 00 21 03 00 01")]
+    public void Unknown_room_tuning_is_not_decoded_or_written(string tuning)
+    {
+        var state = new EdifierProtocol.SoundState(0, Bytes(tuning));
+        Assert.False(EdifierProtocol.TryDecodeRoomTuning(state, out _));
+        Assert.Throws<ArgumentException>(() =>
+            EdifierProtocol.SetRoomTuning(state, new EdifierProtocol.RoomTuning(30, 3, 0, true)));
+    }
+
+    [Theory]
+    [InlineData(15, 3, 0)]
+    [InlineData(105, 3, 0)]
+    [InlineData(33, 3, 0)]
+    [InlineData(30, 4, 0)]
+    [InlineData(30, 3, 5)]
+    [InlineData(30, -1, 0)]
+    public void Out_of_range_room_tuning_is_refused(int lowCut, int slope, int space)
+    {
+        var state = new EdifierProtocol.SoundState(0, Bytes("02 00 1E 03 00 01"));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            EdifierProtocol.SetRoomTuning(state, new EdifierProtocol.RoomTuning(lowCut, slope, space, true)));
+    }
+
+    [Fact]
+    public void A_bass_cut_without_a_choice_matches_none() =>
+        Assert.Null(RoomPresets.MatchBass(new EdifierProtocol.RoomTuning(35, 2, 0, true)));
+
+    /// <summary>The limit stops the app from raising the volume; going down is one step at a time.</summary>
+    [Theory]
+    [InlineData(27, 28, 30, 24, 27)] // a step down from above the limit, set by the knob
+    [InlineData(30, 28, 30, 24, 28)] // never higher than where the knob put it
+    [InlineData(25, 20, 30, 24, 24)] // up to the limit, not past it
+    [InlineData(10, 20, 30, null, 10)]
+    [InlineData(40, 5, 30, null, 30)]
+    [InlineData(-1, 5, 30, 24, 0)]
+    public void Volume_requests_follow_the_limit(int requested, int current, int max, int? limit, int expected) =>
+        Assert.Equal(expected, VolumeRules.Clamp(requested, current, max, limit));
+
     [Fact]
     public void Power_off_packet() => Assert.Equal(Bytes("AA 0C CE 00 00 84"), EdifierProtocol.PowerOff());
 

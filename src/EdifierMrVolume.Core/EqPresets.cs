@@ -15,7 +15,20 @@ public sealed record EqPreset(string Name, IReadOnlyDictionary<int, int> StepsBy
 /// </summary>
 public static class EqPresets
 {
+    /// <summary>The user's own curve, as saved in settings.json (kept for existing settings).</summary>
     public const string CustomName = "Custom";
+
+    /// <summary>
+    /// How the list shows the user's own curve: "Custom" is only the speakers' sound mode (owner,
+    /// 2026-11-16).
+    /// </summary>
+    public const string CustomLabel = "Your curve";
+
+    /// <summary>What the list shows for a saved choice.</summary>
+    public static string Label(string choice) => choice == CustomName ? CustomLabel : choice;
+
+    /// <summary>The saved choice for what the list shows.</summary>
+    public static string ChoiceFor(string label) => label == CustomLabel ? CustomName : label;
 
     public static readonly IReadOnlyList<EqPreset> All =
     [
