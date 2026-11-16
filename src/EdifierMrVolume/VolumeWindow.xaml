@@ -549,6 +549,11 @@
                     <!-- About: the only place the app icon appears inside the app (set in code). -->
                     <TextBlock Margin="4,12,0,4" Style="{StaticResource BodyStrongTextBlockStyle}" Text="About" />
                     <controls:SettingsExpander x:Name="AboutExpander" Header="Edifier MR Volume">
+                        <!-- The app icon larger than the Toolkit's 20 px for setting icons (owner,
+                             2026-11-16: "can you make the edifier icon larger?"). -->
+                        <controls:SettingsExpander.Resources>
+                            <x:Double x:Key="SettingsCardHeaderIconMaxSize">32</x:Double>
+                        </controls:SettingsExpander.Resources>
                         <controls:SettingsExpander.Items>
                             <controls:SettingsCard
                                 Header="GitHub repository"

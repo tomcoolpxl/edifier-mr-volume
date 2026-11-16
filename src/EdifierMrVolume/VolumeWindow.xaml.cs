@@ -631,8 +631,8 @@ public sealed partial class VolumeWindow : Window
         LimitCard.IsEnabled = enabled;
         LimitCard.Description = enabled ? null! : "Turn on Volume limit to choose.";
         LimitExpander.Description = enabled
-            ? $"Up to {_settings.VolumeLimit} of {VolumeMax}. The knob isn't limited."
-            : "The knob isn't limited.";
+            ? $"Up to {_settings.VolumeLimit} of {VolumeMax}. The speaker knob is not limited."
+            : "The speaker knob is not limited.";
     }
 
     private void SetStartEnabled(bool enabled)
