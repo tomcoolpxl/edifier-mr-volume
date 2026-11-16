@@ -42,6 +42,15 @@ internal sealed class AppSettings
     /// <summary>Switch the speakers off when Windows goes to sleep. Off by default.</summary>
     public bool PowerOffOnSleep { get; set; }
 
+    /// <summary>Equalizer choice: a preset name or "Custom"; null until the speaker's curve is known.</summary>
+    public string? EqChoice { get; set; }
+
+    /// <summary>
+    /// The user's own curve, as steps from flat per band (lowest band first). The speaker has one
+    /// custom curve, which a preset overwrites, so this is what "Custom" puts back.
+    /// </summary>
+    public int[]? CustomEq { get; set; }
+
     /// <summary>The limit to pass to the connection, or null when off. Not saved.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public int? EffectiveVolumeLimit => VolumeLimitEnabled ? VolumeLimit : null;

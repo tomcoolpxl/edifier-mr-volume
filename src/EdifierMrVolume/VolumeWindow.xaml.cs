@@ -32,6 +32,7 @@ public sealed partial class VolumeWindow : Window
     private readonly SpeakerConnection _speaker;
     private readonly AppSettings _settings;
     private readonly Func<Task> _reconnect;
+    private readonly Func<Task> _powerOff;
     private readonly Action _settingsChanged;
     private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _peekTimer;
     private bool _updatingFromSpeaker;
@@ -44,13 +45,18 @@ public sealed partial class VolumeWindow : Window
     private long _userEditUntil;
     private long _hiddenAt;
 
-    internal VolumeWindow(SpeakerConnection speaker, AppSettings settings, Func<Task> reconnect, Action settingsChanged)
+    internal VolumeWindow(SpeakerConnection speaker, AppSettings settings, Func<Task> reconnect,
+        Func<Task> powerOff, Action settingsChanged)
     {
         _speaker = speaker;
         _settings = settings;
         _reconnect = reconnect;
+        _powerOff = powerOff;
         _settingsChanged = settingsChanged;
         InitializeComponent();
+
+        foreach (var preset in EqPresets.All) PresetBox.Items.Add(preset.Name);
+        PresetBox.Items.Add(EqPresets.CustomName);
 
         SystemBackdrop = new DesktopAcrylicBackdrop();
         AppWindow.IsShownInSwitchers = false;
@@ -274,9 +280,12 @@ public sealed partial class VolumeWindow : Window
     // ── Volume ─────────────────────────────────────────────────────────
 
     public void Update(SpeakerState state, VolumeLevel? volume, string model, string? detail,
-        EdifierProtocol.SoundState? sound = null)
+        EdifierProtocol.SoundState? sound = null, EdifierProtocol.EqCurve? eq = null)
     {
-        UpdateSoundMode(state == SpeakerState.Connected ? sound : null);
+        var connected = state == SpeakerState.Connected;
+        UpdateSoundMode(connected ? sound : null);
+        UpdateEqualizer(connected ? eq : null);
+        PowerButton.IsEnabled = connected && !_speaker.SwitchedOff;
         ModelText.Text = model;
         StatusText.Text = state switch
         {
@@ -347,6 +356,12 @@ public sealed partial class VolumeWindow : Window
         if (_updatingMode || sender.SelectedItem is not { Tag: string tag } || !int.TryParse(tag, out var mode)) return;
         if (_speaker.RequestSoundMode(mode))
             Log.Write($"Sound mode -> {EdifierProtocol.SoundModeNames[mode]}");
+    }
+
+    private async void PowerButton_Click(object sender, RoutedEventArgs e)
+    {
+        PowerButton.IsEnabled = false;
+        await _powerOff();
     }
 
     private void SetMessage(string? text)
@@ -524,6 +539,157 @@ public sealed partial class VolumeWindow : Window
         if (_loadingSettings || double.IsNaN(args.NewValue)) return;
         _settings.StartVolume = (int)Math.Clamp(Math.Round(args.NewValue), 0, 30);
         SaveSettings($"start volume {_settings.StartVolume}");
+    }
+
+    // ── Equalizer ──────────────────────────────────────────────────────
+
+    private const string EqDescription = "Used in Custom mode.";
+    private readonly List<(Slider Slider, TextBlock Value)> _bandRows = [];
+    private bool _updatingEq;
+    /// <summary>Steps this app asked for and the speaker hasn't reported yet; shown meanwhile.</summary>
+    private int[]? _eqTarget;
+    private long _eqTargetUntil;
+
+    private void UpdateEqualizer(EdifierProtocol.EqCurve? eq)
+    {
+        var usable = eq is not null;
+        PresetBox.IsEnabled = usable;
+        EqBandsCard.IsEnabled = usable;
+        EqExpander.Description = usable ? EqDescription : "Available once the app is connected to the speaker.";
+        if (eq is null)
+        {
+            _eqTarget = null;
+            return;
+        }
+        BuildBandRows(eq);
+
+        // While our own change is on its way, keep showing it: a reading from halfway through
+        // must neither move the sliders back nor be taken as the user's Custom curve.
+        var steps = eq.Steps;
+        if (_eqTarget is not null)
+        {
+            if (!steps.SequenceEqual(_eqTarget) && Environment.TickCount64 < _eqTargetUntil) return;
+            _eqTarget = null;
+        }
+
+        // Which choice the curve is: the user's Custom stays Custom; otherwise a matching preset;
+        // anything else (set in the phone app, say) is the user's own curve.
+        var choice = _settings.EqChoice == EqPresets.CustomName ? EqPresets.CustomName
+            : EqPresets.Match(eq)?.Name ?? EqPresets.CustomName;
+        var save = choice != _settings.EqChoice;
+        _settings.EqChoice = choice;
+        if (choice == EqPresets.CustomName && !(_settings.CustomEq?.SequenceEqual(steps) ?? false))
+        {
+            _settings.CustomEq = steps;
+            save = true;
+        }
+        if (save) _settings.Save();
+        ShowEq(choice, steps);
+    }
+
+    /// <summary>Shows a choice and curve without sending anything to the speaker.</summary>
+    private void ShowEq(string choice, int[] steps)
+    {
+        _updatingEq = true;
+        try
+        {
+            if (!Equals(PresetBox.SelectedItem, choice)) PresetBox.SelectedItem = choice;
+            for (var i = 0; i < _bandRows.Count && i < steps.Length; i++)
+            {
+                _bandRows[i].Slider.Value = steps[i];
+                _bandRows[i].Value.Text = StepsLabel(steps[i]);
+            }
+        }
+        finally
+        {
+            _updatingEq = false;
+        }
+    }
+
+    /// <summary>One row per band the speaker reports: frequency, slider, steps.</summary>
+    private void BuildBandRows(EdifierProtocol.EqCurve eq)
+    {
+        if (_bandRows.Count == eq.Bands.Count) return;
+        EqBandsGrid.Children.Clear();
+        EqBandsGrid.RowDefinitions.Clear();
+        _bandRows.Clear();
+        var caption = (Style)Application.Current.Resources["CaptionTextBlockStyle"];
+        for (var i = 0; i < eq.Bands.Count; i++)
+        {
+            EqBandsGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            var name = FrequencyLabel(eq.Bands[i].Frequency);
+            var label = new TextBlock { Text = name, Style = caption, VerticalAlignment = VerticalAlignment.Center };
+            var slider = new Slider
+            {
+                Minimum = -eq.Range,
+                Maximum = eq.Range,
+                StepFrequency = 1,
+                SmallChange = 1,
+                LargeChange = 2,
+                TickFrequency = 1,
+                TickPlacement = TickPlacement.Inline,
+                SnapsTo = SliderSnapsTo.StepValues,
+                VerticalAlignment = VerticalAlignment.Center,
+                Tag = i,
+            };
+            AutomationProperties.SetName(slider, name);
+            slider.ValueChanged += EqSlider_ValueChanged;
+            var value = new TextBlock
+            {
+                Style = caption,
+                TextAlignment = TextAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            Grid.SetRow(label, i);
+            Grid.SetRow(slider, i);
+            Grid.SetColumn(slider, 1);
+            Grid.SetRow(value, i);
+            Grid.SetColumn(value, 2);
+            EqBandsGrid.Children.Add(label);
+            EqBandsGrid.Children.Add(slider);
+            EqBandsGrid.Children.Add(value);
+            _bandRows.Add((slider, value));
+        }
+    }
+
+    private static string FrequencyLabel(int hz) => hz >= 1000 ? $"{hz / 1000.0:0.#} kHz" : $"{hz} Hz";
+
+    // A real minus sign, as Windows' own number displays use.
+    private static string StepsLabel(int steps) => steps switch { > 0 => $"+{steps}", < 0 => $"\u2212{-steps}", _ => "0" };
+
+    private void PresetBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_updatingEq || PresetBox.SelectedItem is not string choice || _speaker.Equalizer is not { } eq) return;
+        var steps = EqPresets.Find(choice) is { } preset ? preset.StepsFor(eq)
+            : _settings.CustomEq is { } custom && custom.Length == eq.Bands.Count ? custom
+            : eq.Steps;
+        _settings.EqChoice = choice;
+        _settings.Save();
+        Log.Write($"Equalizer -> {choice}");
+        ApplyEq(choice, steps);
+    }
+
+    private void EqSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+    {
+        if (sender is not Slider { Tag: int band }) return;
+        var step = (int)Math.Round(e.NewValue);
+        _bandRows[band].Value.Text = StepsLabel(step);
+        if (_updatingEq || _speaker.Equalizer is null) return;
+        var steps = _bandRows.Select(r => (int)Math.Round(r.Slider.Value)).ToArray();
+        _settings.EqChoice = EqPresets.CustomName;
+        _settings.CustomEq = steps;
+        _settings.Save();
+        ApplyEq(EqPresets.CustomName, steps);
+    }
+
+    /// <summary>Sends a curve, shows it until the speaker reports it, and switches to Custom mode.</summary>
+    private void ApplyEq(string choice, int[] steps)
+    {
+        _eqTarget = steps;
+        _eqTargetUntil = Environment.TickCount64 + 10_000;
+        ShowEq(choice, steps);
+        _speaker.RequestEqualizer(steps);
+        if (_speaker.SoundMode is { Mode: not 2 }) _speaker.RequestSoundMode(2);
     }
 
     // ── Diagnostics and About ──────────────────────────────────────────
