@@ -117,6 +117,25 @@ public class EdifierProtocolTests
     [Fact]
     public void Power_off_packet() => Assert.Equal(Bytes("AA 0C CE 00 00 84"), EdifierProtocol.PowerOff());
 
+    /// <summary>Power saving as the MR4.5 reported it on 2026-11-16 (knob push and query reply).</summary>
+    [Theory]
+    [InlineData("BB EC B1 00 01 00 59", false)]
+    [InlineData("BB EC B1 00 01 01 5A", true)]
+    public void Power_saving_reply_decodes(string hex, bool expected)
+    {
+        var frame = Assert.Single(EdifierProtocol.ParseFrames(Bytes(hex)));
+        Assert.True(EdifierProtocol.TryDecodePowerSaving(frame, out var on));
+        Assert.Equal(expected, on);
+    }
+
+    [Fact]
+    public void Power_saving_packets()
+    {
+        Assert.Equal(Bytes("AA 0C B2 00 01 00 69"), EdifierProtocol.SetPowerSaving(false));
+        Assert.Equal(Bytes("AA 0C B2 00 01 01 6A"), EdifierProtocol.SetPowerSaving(true));
+        Assert.Equal(Bytes("AA 0C B1 00 00 67"), EdifierProtocol.BuildCommand(EdifierProtocol.CmdGetPowerSaving));
+    }
+
     /// <summary>An MR4.5's custom EQ reply, captured 2026-11-16 (curve "Sound Effects").</summary>
     private const string EqReply =
         "BB EC 43 00 38 0C 09 01 00 00 3E 09 01 00 7D 05 02 00 FA 06 03 01 F4 08 04 03 E8 06 05 07 D0 06 " +
