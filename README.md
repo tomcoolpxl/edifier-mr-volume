@@ -28,7 +28,7 @@ Reports for the untested models are welcome.
 
 ## Features
 
-- **The number in the taskbar** is the volume (0–30). Scroll over it to change it.
+- **The number in the taskbar** is the volume (0-30). Scroll over it to change it.
 - **Click it** for the panel: sound mode, volume, mute and power off. The light next to the
   modes has the speaker's colour (red Monitor, green Music, white Custom); click it for the
   next mode.
@@ -57,10 +57,10 @@ Settings, behind the gear:
 
 Windows 10 2004 or later, on x64 or Arm. No Bluetooth pairing needed.
 
-- **Installer:** download `…-win-x64-setup.exe` (or `…-win-arm64-setup.exe`) from
+- **Installer:** download `edifier-mr-volume-vX.Y.Z-win-x64-setup.exe` (or `-win-arm64-setup.exe`) from
   [Releases](https://github.com/tomcoolpxl/edifier-mr-volume/releases) and run it. No admin
   rights needed. Uninstall it from Windows' Installed apps.
-- **Portable:** download `…-win-x64.zip` (or `…-win-arm64.zip`), unpack it anywhere and run
+- **Portable:** download `edifier-mr-volume-vX.Y.Z-win-x64.zip` (or `-win-arm64.zip`), unpack it anywhere and run
   `EdifierMrVolume.exe`. Nothing else to install.
 - **Scoop:**
 
@@ -76,8 +76,8 @@ off Start with Windows, choose Exit, and delete its folder and that one.
 
 ## Problems
 
-**No number in the taskbar?** Windows hides new icons. Turn it on under Settings ›
-Personalization › Taskbar › Other system tray icons (Windows 10: Select which icons appear on
+**No number in the taskbar?** Windows hides new icons. Turn it on under Settings >
+Personalization > Taskbar > Other system tray icons (Windows 10: Select which icons appear on
 the taskbar). The app shows this hint on its first start.
 
 **The phone app can't connect?** The speakers accept one control connection at a time. Turn
@@ -115,7 +115,7 @@ Only one copy runs at a time, so exit the installed one before starting another.
 
 Commit messages follow Conventional Commits, because the release notes are built from them.
 CI builds, tests and installs the app on every push, on x64 and on Windows on Arm. A release
-is Actions › Release › Run workflow; see [docs/RELEASING.md](docs/RELEASING.md).
+is Actions > Release > Run workflow; see [docs/RELEASING.md](docs/RELEASING.md).
 
 | Path | What |
 | --- | --- |
@@ -139,13 +139,13 @@ Verified on an MR4.5 (firmware 1.0.0) in November 2026.
 | --- | --- |
 | Advertised name | `EDIFIER BLE`, manufacturer id `0x07E0` |
 | Advertised search UUID | `00006303-0000-1000-8000-00805f9b34fb` |
-| Control service | `48096303-1a48-11e9-ab14-d663bd873d93` (MR3: `4809f301-…`, MR5: `48093a01-…`) |
+| Control service | `48096303-1a48-11e9-ab14-d663bd873d93` (MR3: `4809f301-...`, MR5: `48093a01-...`) |
 | Notify characteristic | `48090001-1a48-11e9-ab14-d663bd873d93` |
 | Write characteristic | `48090002-1a48-11e9-ab14-d663bd873d93` |
 
-Packets: `AA <appCode> <cmd> <lenHi> <lenLo> <payload…> <checksum>`, where the checksum is the
+Packets: `AA <appCode> <cmd> <lenHi> <lenLo> <payload...> <checksum>`, where the checksum is the
 sum of the bytes before it, & 0xFF. Replies start with `BB EC`. The 8625 DSP revisions
-reportedly use `…7c03…` instead of `…6303…`; the app tries both.
+reportedly use `...7c03...` instead of `...6303...`; the app tries both.
 
 | Command | Request | Reply on the MR4.5 | Used |
 | --- | --- | --- | --- |
@@ -155,10 +155,10 @@ reportedly use `…7c03…` instead of `…6303…`; the app tries both.
 | `0xC9` model name | `AA 0C C9 00 00 7F` | `EDIFIER MR4.5` | Diagnostics |
 | `0xD5` sound mode and room tuning | `AA 0C D5 00 00 8B` | `00 02 00 1E 03 00 01`: mode 0 (Monitor), then six room-tuning bytes. Also sent when the speaker's button changes the mode. | yes, every 5 s |
 | `0xC4` set sound mode | the 7 bytes from `0xD5` with the mode replaced, e.g. `AA 0C C4 00 07 01 02 00 1E 03 00 01 A6` (Music) | ack, then a `0xD5` | yes |
-| `0x43` custom EQ | `AA 0C 43 00 00 F9` | 9 bands of `[index][freqHi][freqLo][gain]`, 62 Hz to 16 kHz, gain 0–12 (6 = flat) | yes |
+| `0x43` custom EQ | `AA 0C 43 00 00 F9` | 9 bands of `[index][freqHi][freqLo][gain]`, 62 Hz to 16 kHz, gain 0-12 (6 = flat) | yes |
 | `0x44` set an EQ band | `[slot][index][freqHi][freqLo][gain]`, e.g. `AA 0C 44 00 05 01 00 00 3E 0B 49` | ack | yes |
 | `0xB1` power saving | `AA 0C B1 00 00 67` | `00` off, `01` on | yes |
-| `0xB2` set power saving | `AA 0C B2 00 01 00 69` (off), `… 01 6A` (on) | the previous value | yes |
+| `0xB2` set power saving | `AA 0C B2 00 01 00 69` (off), `... 01 6A` (on) | the previous value | yes |
 | `0xCE` power off | `AA 0C CE 00 00 84` | none; the speakers switch off | yes |
 | `0xD1`/`0xD2`/`0xD3` shutdown timer | `AA 0C D3 00 00 89` | `00 00` = off | no |
 | `0x61` input | `AA 0C 61 00 00 17` | `04 01`, meaning unknown | no |
@@ -173,9 +173,9 @@ manual):
 | --- | --- | --- |
 | index | calibration index | unknown, kept as read |
 | byte0 | 1 resets the DSP calibration | kept as read |
-| low cut | high-pass frequency | 20–100 Hz in 5 Hz steps |
-| slope | low-cut steepness | 0–3 = 6, 12, 18, 24 dB per octave |
-| acoustic space | bass cut for walls nearby | 0–4 = 0 to −4 dB |
+| low cut | high-pass frequency | 20-100 Hz in 5 Hz steps |
+| slope | low-cut steepness | 0-3 = 6, 12, 18, 24 dB per octave |
+| acoustic space | bass cut for walls nearby | 0-4 = 0 to -4 dB |
 | desktop | cuts the boost from a desk | 0 off, 1 on |
 
 The app only changes the low cut, slope, acoustic space and desktop bytes, within these ranges,

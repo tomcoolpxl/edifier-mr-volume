@@ -7,7 +7,7 @@ Bluetooth LE. See README.md for features and the verified protocol.
 ## Rules
 
 - Don't add features on your own initiative. Propose them and let the owner pick first.
-- Commit subjects follow Conventional Commits (`feat(scope): …`, `fix(scope): …`); the
+- Commit subjects follow Conventional Commits (`feat(scope): ...`, `fix(scope): ...`); the
   release notes are generated from them. See docs/RELEASING.md for types, scopes and the
   release routine (version lives only in Directory.Build.props).
 - Keep the app light: it runs all the time. Measure CPU before and after changes to the

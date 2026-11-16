@@ -30,7 +30,7 @@ type(scope): description
   `settings`, `install`, `probe`. It shows in bold in the notes.
 - The **description** is written for someone reading the release notes, and kept exactly
   as written, so start it lowercase: `fix(ble): ride out short disconnect reports`.
-- `!` before the colon (`feat(settings)!: …`) also lists the commit under **Breaking
+- `!` before the colon (`feat(settings)!: ...`) also lists the commit under **Breaking
   changes**; say what breaks in the body.
 - A subject without a known type still appears, under **Other**.
 
@@ -47,7 +47,7 @@ pwsh .github/scripts/release-notes.ps1 -Tag vNEXT -Out release-notes.md
 
 ## Making a release: one click
 
-On GitHub: **Actions › Release › Run workflow**, on `main`, and pick which part of the version
+On GitHub: **Actions > Release > Run workflow**, on `main`, and pick which part of the version
 goes up one: **patch** (fixes), **minor** (features, a new speaker), **major** (breaking).
 [`.github/workflows/release.yml`](../.github/workflows/release.yml) then:
 

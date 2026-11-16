@@ -107,9 +107,9 @@ Most fixes are small: a focus call, an event handler, an InfoBar, a rename.
 - **Fix (keeps the owner's "no confirmation"):**
   - Move the button away from the gear: either the left end of the header, or its own labelled button
     at the bottom of the panel ("Turn off speakers" with the power icon).
-  - Give it a bigger target, at least 32–40 DIP.
+  - Give it a bigger target, at least 32-40 DIP.
   - In the menu, move it into the last group just above **Exit**, separated from **Open**.
-- **Owner decision — reconsider?** No confirmation is the owner's explicit choice (TODO.md,
+- **Owner decision, reconsider?** No confirmation is the owner's explicit choice (TODO.md,
   2026-11-16).
   - Reason to reconsider: this is the one action in the app that can't be reversed from the PC.
   - A light option that isn't a dialog: a Flyout on the button holding a single **Turn off** button.
@@ -221,11 +221,11 @@ Most fixes are small: a focus call, an event handler, an InfoBar, a rename.
   - The raw exception text: `src/EdifierMrVolume.Core/SpeakerConnection.cs:346`, with examples at
     `:416-462` and `:619`.
 - **What is wrong:**
-  - The reason the app can't connect ("Not found yet…", "Bluetooth is off…") is shown in the panel's
+  - The reason the app can't connect ("Not found yet...", "Bluetooth is off...") is shown in the panel's
     least prominent style: Caption size, secondary colour. Yet it is the one message that matters when
     nothing works.
   - After a failed attempt the line shows the exception message as-is. That can be technical, for
-    example "Control characteristic 48090002-… not available (Unreachable)." or Windows' own COM
+    example "Control characteristic 48090002-... not available (Unreachable)." or Windows' own COM
     error text.
   - The released state says "Right-click the number and tick Connected to speaker". That route is
     mouse-only and leads out of the panel, which has no button for it. Keyboard users can't follow it
@@ -291,14 +291,14 @@ Most fixes are small: a focus call, an event handler, an InfoBar, a rename.
     slider.
   - SelectorBar selects its first item when it gets focus with nothing selected, and raises
     `SelectionChanged` on Tab focus and on the arrow keys. If the speakers ever report a mode outside
-    0–2 (`UpdateSoundMode` returns early at `:341`), tabbing into the bar would select Monitor and send
+    0-2 (`UpdateSoundMode` returns early at `:341`), tabbing into the bar would select Monitor and send
     it to the speakers.
 - **Guidelines:**
   - [SelectorBar](https://learn.microsoft.com/windows/apps/develop/ui/controls/selector-bar): "Use a
     SelectorBar when you want to let a user navigate between a limited number of views or pages". The
     same page describes the focus auto-selection.
   - The Toolkit's [Segmented](https://learn.microsoft.com/dotnet/communitytoolkit/windows/segmented/)
-    control is described as "A common UI control to configure a view or setting", for 2–5 items.
+    control is described as "A common UI control to configure a view or setting", for 2-5 items.
   - [WCAG 3.3.2 Labels or Instructions](https://www.w3.org/WAI/WCAG21/Understanding/labels-or-instructions.html).
 - **Fix:**
   - Use the Toolkit's `Segmented` control (the same toolkit family the app already uses) or
@@ -318,7 +318,7 @@ Most fixes are small: a focus call, an event handler, an InfoBar, a rename.
 - **What is wrong:**
   - The header's columns are the model name (`*`), the status text (`Auto`), power (`Auto`) and gear
     (`Auto`), inside a panel fixed at 340 DIP wide. Only the height follows the content.
-  - At 225 % text, "Looking for speaker…" needs roughly 260 DIP. Auto columns are measured first, so
+  - At 225 % text, "Looking for speaker..." needs roughly 260 DIP. Auto columns are measured first, so
     the model name gets no width and the row runs past the right edge, clipping the gear, which is the
     only way into settings.
   - The four "Close after" radios sit in a horizontal StackPanel that doesn't wrap, so "5 s" can be
@@ -393,7 +393,7 @@ Most fixes are small: a focus call, an event handler, an InfoBar, a rename.
 - **Guidelines:**
   - [Targeting](https://learn.microsoft.com/windows/apps/develop/input/guidelines-for-targeting): 40 × 40.
   - [WCAG 2.5.8](https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html).
-- **Fix:** padding of 9–10 (about 32 × 32) for gear, Back and Mute; the power button as in 2.2.
+- **Fix:** padding of 9-10 (about 32 × 32) for gear, Back and Mute; the power button as in 2.2.
 - **Severity:** low.
 
 ### 2.15 Notification-area menu: a label, the order and the default item
@@ -420,7 +420,7 @@ Most fixes are small: a focus call, an event handler, an InfoBar, a rename.
 
 - **Where:** `VolumeWindow.xaml.cs:639-682` (`BuildBandRows`); see `eq_panel.png`.
 - **What is wrong:**
-  - Each slider fills with the accent colour from the left end (−6) to the thumb, so a −2 cut looks
+  - Each slider fills with the accent colour from the left end (-6) to the thumb, so a -2 cut looks
     like a long bar, just as a boost does.
   - Flat (0) is only "the middle", and there are no range labels.
   - The track is short: about 110 DIP for 13 steps.
@@ -429,7 +429,7 @@ Most fixes are small: a focus call, an event handler, an InfoBar, a rename.
   - "Use tick marks when you want to show users the location of major or significant values".
   - "Size the control so that users can easily set the value they want".
 - **Fix:**
-  - Add a scale row above the bands ("−6 · 0 · +6", or "Cut" and "Boost").
+  - Add a scale row above the bands ("-6 · 0 · +6", or "Cut" and "Boost").
   - Use lightweight styling so the fill doesn't suggest an amount.
   - Shrink the indent so the tracks get longer.
 - **Severity:** low.
@@ -438,8 +438,8 @@ Most fixes are small: a focus call, an event handler, an InfoBar, a rename.
 
 - **Where:** XAML, code-behind and `SpeakerConnection.cs` texts.
 - **What is wrong, and the suggested text:**
-  - **Switch / turn.** "Switch speakers off", "Switch off when the PC sleeps", "Switch on … to choose"
-    (three cards) and "Switched off. Switch the speakers on…": Microsoft says "turn on, turn off" for
+  - **Switch / turn.** "Switch speakers off", "Switch off when the PC sleeps", "Switch on ... to choose"
+    (three cards) and "Switched off. Switch the speakers on...": Microsoft says "turn on, turn off" for
     devices and toggles. Owner wording: the owner's own notes say "switch", so this is the owner's
     call.
   - **Power saving description.** "Switched off, they use more power" is ambiguous: the setting, or
@@ -447,12 +447,12 @@ Most fixes are small: a focus call, an event handler, an InfoBar, a rename.
     off, they stay on and use more power. The knob changes this setting too."
   - **"tick".** British English. Use "select".
   - **Speaker / speakers.** The same thing is "the speaker" in "Connected to speaker", "Looking for
-    speaker…" and "the knob on the speaker", but "the speakers" in "Switch speakers off" and "the
+    speaker..." and "the knob on the speaker", but "the speakers" in "Switch speakers off" and "the
     speakers go to standby". Suggested rule: "speakers" for the pair (power, sound); "speaker" only for
     the one with the knob and Bluetooth.
   - **One state, four labels.** "Disconnected" (panel), "disconnected" (tooltip), "Released (not
-    connected)" (Diagnostics) and "Released, so another device…" (message). Also "Looking for
-    speaker…" against "Looking for the speaker". Pick one form of each.
+    connected)" (Diagnostics) and "Released, so another device..." (message). Also "Looking for
+    speaker..." against "Looking for the speaker". Pick one form of each.
   - **Small fixes.**
     - "Last error: none" → "None".
     - "MIT licence" → "MIT License", US spelling like the rest.
@@ -529,7 +529,7 @@ Most fixes are small: a focus call, an event handler, an InfoBar, a rename.
   - Lighten the edge to about `#8A8B90` or lighter (about 4.8:1 on #202020 and 3.1:1 on #F3F3F3) and
     thicken it slightly in the small icon.
   - Or add a dark-theme variant with a graphite cabinet.
-- **Owner decision — reconsider?** The owner asked for the satin black MR4.5 look. A lighter rim keeps
+- **Owner decision, reconsider?** The owner asked for the satin black MR4.5 look. A lighter rim keeps
   that look.
 - **Severity:** low.
 
@@ -545,7 +545,7 @@ Most fixes are small: a focus call, an event handler, an InfoBar, a rename.
 - **Guideline:** [Notification area](https://learn.microsoft.com/windows/win32/uxguide/winenv-notification):
   "Dismiss the popup window if the user clicks anywhere outside the window". Light dismiss itself is
   right.
-- **Fix (proposal):** if the panel was hidden less than about 30–60 s ago, reopen it to the settings
+- **Fix (proposal):** if the panel was hidden less than about 30-60 s ago, reopen it to the settings
   view with the same expanders open.
 - **Severity:** low.
 
@@ -586,7 +586,7 @@ Most fixes are small: a focus call, an event handler, an InfoBar, a rename.
 - **Settings structure** matches Microsoft's app-settings guidelines:
   - SettingsCard and SettingsExpander, with one-word BodyStrong section headers.
   - Changes take effect immediately.
-  - Disabled cards say why ("Switch on … to choose", "Available once the app is connected…").
+  - Disabled cards say why ("Switch on ... to choose", "Available once the app is connected...").
   - About is an expander at the bottom with icon, name and version.
   - The external links are clickable cards with an open-in-new icon.
   - It is a single scrolling column.
@@ -605,7 +605,7 @@ Most fixes are small: a focus call, an event handler, an InfoBar, a rename.
   scrolling. Width is the exception (2.10).
 - **Clear texts:**
   - Volume limit and Start volume say exactly what they do.
-  - The "Switched off…" message tells the user how to get the speakers back.
+  - The "Switched off..." message tells the user how to get the speakers back.
   - The "Not found" hint appears after 15 s.
   - The Diagnostics values can be selected, with Reconnect and Open log next to them.
 - **Wheel over the number:** the hook exists only while the pointer is over the icon, so it stays
