@@ -1,7 +1,8 @@
 # Weekly update proposals as pull requests, so a dependency with a fix doesn't wait for someone
 # to notice it. As in cash: one grouped pull request per ecosystem for the patch and minor
-# updates, and one pull request per major update. CI (ci.yml) builds, tests, smoke-launches and
-# test-installs each one before it can be merged; nothing merges itself.
+# updates, which merge themselves once CI passes (workflows/dependabot-merge.yml), and one pull
+# request per major update, which waits for a person. CI (ci.yml) builds, tests, smoke-launches
+# and test-installs each one.
 version: 2
 updates:
   # Windows App SDK, H.NotifyIcon, the Community Toolkit settings controls and the test packages.
