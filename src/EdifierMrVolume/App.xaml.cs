@@ -356,7 +356,8 @@ public partial class App : Application
         if (_window is null)
         {
             _window = new VolumeWindow(_speaker, _settings, new WindowCommands(
-                ReconnectAsync, PowerOffAsync, SetConnectedAsync, SetAutostart, ExitApp, ApplySettings));
+                ReconnectAsync, PowerOffAsync, SetConnectedAsync, SetAutostart, ExitApp, ApplySettings,
+                () => _wheel?.IconBounds()));
             _window.Hidden += (_, _) =>
             {
                 // Opened from the keyboard: back to the notification area, as Windows asks.

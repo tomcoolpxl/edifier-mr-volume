@@ -102,6 +102,13 @@ internal sealed partial class TrayWheel : IDisposable
         return CallNextHookEx(0, code, message, data);
     }
 
+    /// <summary>Where the icon is on screen, in physical pixels, or null when Windows can't say.</summary>
+    public Windows.Graphics.RectInt32? IconBounds()
+    {
+        if (GetIconRect(out var r) != 0 || r.Right <= r.Left || r.Bottom <= r.Top) return null;
+        return new Windows.Graphics.RectInt32(r.Left, r.Top, r.Right - r.Left, r.Bottom - r.Top);
+    }
+
     private int GetIconRect(out Rect rect)
     {
         var id = new NotifyIconIdentifier

@@ -24,7 +24,8 @@ internal sealed record WindowCommands(
     Func<bool, Task> SetConnected,
     Action<bool> SetAutostart,
     Action Exit,
-    Action SettingsChanged);
+    Action SettingsChanged,
+    Func<RectInt32?> IconBounds);
 
 /// <summary>
 /// Small panel next to the taskbar: status, mute, slider and the current level, with a settings,
@@ -41,8 +42,6 @@ public sealed partial class VolumeWindow : Window
     /// </summary>
     private const int SettingsWidthDip = 500;
     private const int MarginDip = 12;
-    /// <summary>Hidden for less than this, the panel reopens where it was (review 2.22).</summary>
-    private const long KeepViewMs = 60_000;
     private const string NotConnectedYet = "Available once the app is connected to the speaker.";
     private const string RepoUrl = "https://github.com/tomcoolpxl/edifier-mr-volume";
     private const string MuteGlyph = "";
@@ -138,9 +137,6 @@ public sealed partial class VolumeWindow : Window
     public void ShowFlyout(bool keyboard = false)
     {
         StopPeeking();
-        // Back within a minute (after Open log, a link, a click on the taskbar): reopen where it
-        // was, settings and open expanders included. Later, start from the volume again.
-        if (_settingsOpen && Environment.TickCount64 - _hiddenAt > KeepViewMs) ShowMainView(focus: false);
         Place();
         AppWindow.Show();
         Activate();
@@ -178,6 +174,9 @@ public sealed partial class VolumeWindow : Window
         AppWindow.Hide();
         _hiddenAt = Environment.TickCount64;
         if (_firstRunShown) MarkFirstRunDone();
+        // Next time it opens on the volume (owner, 2026-11-16: "It should immediately shift back
+        // to the normal view").
+        ShowMainView(focus: false);
         Hidden?.Invoke(this, EventArgs.Empty);
     }
 
@@ -228,15 +227,29 @@ public sealed partial class VolumeWindow : Window
     }
 
     /// <summary>
-    /// Sizes the panel to its content and puts it in the corner next to the taskbar (bottom, top,
-    /// left or right) on the monitor under the mouse.
+    /// Sizes the panel to its content and puts it next to the taskbar, centred on the
+    /// notification-area icon (owner, 2026-11-16: "It should appear above the icon"): above it for
+    /// a taskbar at the bottom, below it at the top, beside it on the left or right, kept inside
+    /// the screen. When Windows can't say where the icon is (hidden in the overflow), it goes in
+    /// the corner next to the taskbar on the monitor under the mouse.
     /// </summary>
     private void Place()
     {
         if (_exiting) return;
-        NativeMethods.GetCursorPos(out var cursor);
-        var display = DisplayArea.GetFromPoint(new PointInt32(cursor.X, cursor.Y), DisplayAreaFallback.Primary);
-        var scale = NativeMethods.ScaleForPoint(cursor);
+        PointInt32 anchor;
+        var icon = _commands.IconBounds();
+        if (icon is { Width: > 0, Height: > 0 } r)
+        {
+            anchor = new PointInt32(r.X + r.Width / 2, r.Y + r.Height / 2);
+        }
+        else
+        {
+            NativeMethods.GetCursorPos(out var cursor);
+            anchor = new PointInt32(cursor.X, cursor.Y);
+            icon = null;
+        }
+        var display = DisplayArea.GetFromPoint(anchor, DisplayAreaFallback.Primary);
+        var scale = NativeMethods.ScaleForPoint(new NativeMethods.POINT { X = anchor.X, Y = anchor.Y });
         var work = display.WorkArea;
         var outer = display.OuterBounds;
         var margin = (int)Math.Round(MarginDip * scale);
@@ -244,19 +257,33 @@ public sealed partial class VolumeWindow : Window
         var frameWidth = Math.Max(0, AppWindow.Size.Width - AppWindow.ClientSize.Width);
         var frameHeight = Math.Max(0, AppWindow.Size.Height - AppWindow.ClientSize.Height);
         var width = (int)Math.Round(WidthDip * scale) + frameWidth;
-        if (AppWindow.IsVisible && Math.Abs(AppWindow.Size.Width - width) <= 1
-            && Math.Abs(AppWindow.Size.Height - Math.Min((int)Math.Round(ContentHeightDip() * scale) + frameHeight, work.Height - 2 * margin)) <= 1
-            && AppWindow.Position.X == (work.X > outer.X ? work.X + margin : work.X + work.Width - width - margin))
-        {
-            return; // already right; avoids resize loops from SizeChanged
-        }
         var height = Math.Min((int)Math.Round(ContentHeightDip() * scale) + frameHeight, work.Height - 2 * margin);
 
         var taskbarOnTop = work.Y > outer.Y;
         var taskbarOnLeft = work.X > outer.X;
-        var x = taskbarOnLeft ? work.X + margin : work.X + work.Width - width - margin;
-        var y = taskbarOnTop ? work.Y + margin : work.Y + work.Height - height - margin;
-        AppWindow.MoveAndResize(new RectInt32(x, y, width, height));
+        var taskbarOnRight = !taskbarOnLeft && work.X + work.Width < outer.X + outer.Width;
+        var taskbarSideways = taskbarOnLeft || taskbarOnRight;
+        int minX = work.X + margin, maxX = work.X + work.Width - width - margin;
+        int minY = work.Y + margin, maxY = work.Y + work.Height - height - margin;
+        int x, y;
+        if (taskbarSideways)
+        {
+            x = taskbarOnLeft ? minX : maxX;
+            y = icon is null ? maxY : Math.Clamp(anchor.Y - height / 2, minY, Math.Max(minY, maxY));
+        }
+        else
+        {
+            x = icon is null ? maxX : Math.Clamp(anchor.X - width / 2, minX, Math.Max(minX, maxX));
+            y = taskbarOnTop ? minY : maxY;
+        }
+
+        var target = new RectInt32(x, y, width, height);
+        if (AppWindow.IsVisible && AppWindow.Position.X == x && AppWindow.Position.Y == y
+            && Math.Abs(AppWindow.Size.Width - width) <= 1 && Math.Abs(AppWindow.Size.Height - height) <= 1)
+        {
+            return; // already right; avoids resize loops from SizeChanged
+        }
+        AppWindow.MoveAndResize(target);
     }
 
     /// <summary>The settings view is a little wider, for the settings cards.</summary>
