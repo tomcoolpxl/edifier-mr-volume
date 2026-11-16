@@ -585,7 +585,8 @@ public sealed partial class VolumeWindow : Window
             SetHideAfterEnabled(_settings.ShowOnKnobTurn);
 
             LimitSwitch.IsOn = _settings.VolumeLimitEnabled;
-            LimitBox.Value = _settings.VolumeLimit;
+            LimitSlider.Value = _settings.VolumeLimit;
+            LimitValue.Text = $"{_settings.VolumeLimit} of {VolumeMax}";
             SetLimitEnabled(_settings.VolumeLimitEnabled);
 
             StartSwitch.IsOn = _settings.StartVolumeEnabled;
@@ -627,7 +628,9 @@ public sealed partial class VolumeWindow : Window
     {
         LimitCard.IsEnabled = enabled;
         LimitCard.Description = enabled ? null! : "Turn on Volume limit to choose.";
-        LimitExpander.Description = enabled ? $"Up to {_settings.VolumeLimit}. The knob isn't limited." : "The knob isn't limited.";
+        LimitExpander.Description = enabled
+            ? $"Up to {_settings.VolumeLimit} of {VolumeMax}. The knob isn't limited."
+            : "The knob isn't limited.";
     }
 
     private void SetStartEnabled(bool enabled)
@@ -653,10 +656,15 @@ public sealed partial class VolumeWindow : Window
         SaveSettings($"volume limit {(_settings.VolumeLimitEnabled ? $"on, {_settings.VolumeLimit}" : "off")}");
     }
 
-    private void LimitBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
+    /// <summary>The speaker's top level (30 on the MR4.5), or 30 before it has said.</summary>
+    private int VolumeMax => _speaker.Volume?.Max ?? EdifierProtocol.DefaultMaxVolume;
+
+    private void LimitSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
     {
-        if (_loadingSettings || double.IsNaN(args.NewValue)) return;
-        _settings.VolumeLimit = (int)Math.Clamp(Math.Round(args.NewValue), 1, 30);
+        var level = (int)Math.Clamp(Math.Round(e.NewValue), 1, 30);
+        LimitValue.Text = $"{level} of {VolumeMax}";
+        if (_loadingSettings || level == _settings.VolumeLimit) return;
+        _settings.VolumeLimit = level;
         SetLimitEnabled(_settings.VolumeLimitEnabled);
         SaveSettings($"volume limit {_settings.VolumeLimit}");
     }

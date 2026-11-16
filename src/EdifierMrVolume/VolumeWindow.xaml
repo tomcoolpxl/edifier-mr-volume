@@ -258,15 +258,36 @@
                             AutomationProperties.Name="Volume limit"
                             Toggled="LimitSwitch_Toggled" />
                         <controls:SettingsExpander.Items>
-                            <controls:SettingsCard x:Name="LimitCard" Header="Highest level">
-                                <NumberBox
-                                    x:Name="LimitBox"
-                                    Minimum="1"
-                                    Maximum="30"
-                                    SmallChange="1"
-                                    SpinButtonPlacementMode="Inline"
-                                    AutomationProperties.Name="Highest level"
-                                    ValueChanged="LimitBox_ValueChanged" />
+                            <!-- A slider over the whole volume range, so it's clear what 24 is out of
+                                 (owner, 2026-11-16: "up to 24 of what?"). -->
+                            <controls:SettingsCard
+                                x:Name="LimitCard"
+                                Header="Highest level"
+                                ContentAlignment="Vertical"
+                                HorizontalContentAlignment="Stretch">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Slider
+                                        x:Name="LimitSlider"
+                                        Minimum="1"
+                                        Maximum="30"
+                                        StepFrequency="1"
+                                        SmallChange="1"
+                                        LargeChange="3"
+                                        VerticalAlignment="Center"
+                                        AutomationProperties.Name="Highest level"
+                                        ValueChanged="LimitSlider_ValueChanged" />
+                                    <TextBlock
+                                        x:Name="LimitValue"
+                                        Grid.Column="1"
+                                        MinWidth="56"
+                                        Style="{StaticResource BodyStrongTextBlockStyle}"
+                                        TextAlignment="Right"
+                                        VerticalAlignment="Center" />
+                                </Grid>
                             </controls:SettingsCard>
                         </controls:SettingsExpander.Items>
                     </controls:SettingsExpander>
