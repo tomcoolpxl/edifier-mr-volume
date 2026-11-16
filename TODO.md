@@ -97,6 +97,13 @@ Speaker:
       back `00 00`). Owner asked why 20 minutes: it was an arbitrary example; the test used 1
       minute. Still unknown: whether it is a shutdown timer or auto-standby on silence.
       Owner, 2026-11-16: find out with a 1-minute test while music plays.*
+      *Tested 2026-11-16 02:10, music playing (the PC's output peaked 0.1-0.6 before and after):
+      `0xD3` read `00 00`; `0xD1 00 01` acked `01`, `0xD3` then read `00 01` and stayed `00 01`
+      (no countdown visible); the control link dropped at 02:11:42, 67 s after setting. So `0xD1`
+      is a **shutdown (sleep) timer** in minutes that switches the speakers off even while music
+      plays, not auto-standby on silence. It is one-shot: after the owner switched the speakers
+      back on (02:12:37), `0xD3` read `00 00` already; `0xD2` acked `01` and `0xD3` read `00 00`.
+      Offering the timer in the app is the owner's decision.*
 
 Convenience:
 - [x] Mute (click the speaker symbol; click again restores). *Tested: 7 → 0 → 7.*
