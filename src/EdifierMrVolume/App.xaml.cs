@@ -390,14 +390,30 @@ public partial class App : Application
 
     private void ToggleWindow() => ToggleWindow(keyboard: false);
 
-    private void ToggleWindow(bool keyboard)
+    private void ToggleWindow(bool keyboard) => Guarded("open the panel", () =>
     {
         var window = EnsureWindow();
         _openedByKeyboard = keyboard;
         window.Toggle(keyboard);
-    }
+    });
 
-    private void ShowWindow() => EnsureWindow().ShowFlyout();
+    private void ShowWindow() => Guarded("open the panel", () => EnsureWindow().ShowFlyout());
+
+    /// <summary>
+    /// Runs a UI action from the notification icon. An exception there would cross back into
+    /// native code and end the app at once (Native AOT can't pass it on), so log it instead.
+    /// </summary>
+    private static void Guarded(string what, Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"Could not {what}: {ex}");
+        }
+    }
 
     private async void ToggleConnection() => await SetConnectedAsync(!_speaker.IsRunning);
 

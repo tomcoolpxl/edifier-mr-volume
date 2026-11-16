@@ -509,6 +509,7 @@ public sealed partial class VolumeWindow : Window
 
     private void VolumeSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
     {
+        if (VolumeText is null || MuteIcon is null) return; // still being built
         var level = (int)Math.Round(e.NewValue);
         if (!_updatingFromSpeaker && VolumeSlider.IsEnabled && _settings.EffectiveVolumeLimit is { } limit && level > limit)
         {
@@ -646,7 +647,8 @@ public sealed partial class VolumeWindow : Window
     private void HideAfter_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         var index = HideAfterChoice.SelectedIndex;
-        if (_loadingSettings || index < 0 || index >= AppSettings.HideChoices.Length) return;
+        if (_loadingSettings || index < 0 || index >= AppSettings.HideChoices.Length
+            || AppSettings.HideChoices[index] == _settings.HideAfterSeconds) return; // also raised when the expander first opens
         _settings.HideAfterSeconds = AppSettings.HideChoices[index];
         SaveSettings($"auto-opened panel closes after {_settings.HideAfterSeconds} s");
     }
@@ -664,6 +666,9 @@ public sealed partial class VolumeWindow : Window
 
     private void LimitSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
     {
+        // Also raised while the panel is being built (Minimum 1 moves the value off 0), before
+        // the label below exists: that crashed the app when the panel first opened.
+        if (LimitValue is null) return;
         var level = (int)Math.Clamp(Math.Round(e.NewValue), 1, 30);
         LimitValue.Text = $"{level} of {VolumeMax}";
         if (_loadingSettings || level == _settings.VolumeLimit) return;
@@ -682,6 +687,7 @@ public sealed partial class VolumeWindow : Window
 
     private void StartSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
     {
+        if (StartValue is null) return; // still being built (see LimitSlider_ValueChanged)
         var level = (int)Math.Clamp(Math.Round(e.NewValue), 0, 30);
         StartValue.Text = $"{level} of {VolumeMax}";
         if (_loadingSettings || level == _settings.StartVolume) return;
@@ -984,7 +990,7 @@ public sealed partial class VolumeWindow : Window
     /// <summary>One of the three room controls moved: send all four values together.</summary>
     private void ApplyRoom()
     {
-        if (_updatingRoom || _speaker.SoundMode is not { } sound
+        if (_updatingRoom || BassBox is null || DeskSwitch is null || _speaker.SoundMode is not { } sound
             || !EdifierProtocol.TryDecodeRoomTuning(sound, out var current)) return;
         var shown = _roomTarget ?? current;
         var index = BassBox.SelectedIndex;
