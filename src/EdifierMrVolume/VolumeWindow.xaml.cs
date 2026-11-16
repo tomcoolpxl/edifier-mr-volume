@@ -35,7 +35,11 @@ internal sealed record WindowCommands(
 public sealed partial class VolumeWindow : Window
 {
     private const int MainWidthDip = 340;
-    private const int SettingsWidthDip = 400;
+    /// <summary>
+    /// Wide enough for the Toolkit's settings cards (designed for 476 DIP and up), so the text wraps
+    /// less and the view is shorter (owner, 2026-11-16).
+    /// </summary>
+    private const int SettingsWidthDip = 500;
     private const int MarginDip = 12;
     /// <summary>Hidden for less than this, the panel reopens where it was (review 2.22).</summary>
     private const long KeepViewMs = 60_000;

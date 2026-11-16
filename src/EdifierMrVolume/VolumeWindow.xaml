@@ -314,6 +314,7 @@
                                 x:Name="EqBandsCard"
                                 Header="Bands"
                                 ContentAlignment="Vertical"
+                                HorizontalContentAlignment="Stretch"
                                 IsEnabled="False">
                                 <Grid x:Name="EqBandsGrid" ColumnSpacing="8" HorizontalAlignment="Stretch">
                                     <!-- Lightweight styling: no accent fill from the left end, which
@@ -367,6 +368,7 @@
                                 x:Name="WallCard"
                                 Header="Where the speakers stand"
                                 ContentAlignment="Vertical"
+                                HorizontalContentAlignment="Stretch"
                                 IsEnabled="False">
                                 <StackPanel HorizontalAlignment="Stretch" Spacing="2">
                                     <Slider
