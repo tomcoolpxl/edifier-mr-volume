@@ -4,6 +4,30 @@ Open requests, in the owner's words where possible. Tick an item only when it is
 verified, with a note saying how. Before any question to the owner, every unticked item here is
 either offered or named as deliberately left out.
 
+## Waiting for the owner (after the night of 2026-11-16)
+
+Decisions (each with context below):
+1. Which findings of the UX/UI review to fix ([docs/UX-REVIEW.md](docs/UX-REVIEW.md); 2 high, 8
+   medium, 13 low).
+2. Room tuning in the app (low cut, slope, acoustic space, desktop control) or not.
+3. Dependabot: let green patch/minor updates merge themselves, as in cash, or not.
+4. Install WinApp CLI (for the winui skills' sample search) or not.
+5. A release with all of this (one-click, patch or minor).
+6. Power saving is **on** on the speakers: switched on from the panel at 02:36 (not by me).
+   Intended?
+7. The Custom curve is now +5/−2/0/0/0/+2: a band was moved in the panel around 02:46 (not by
+   me or the review agent), which replaced +4/+5/+4/+2 (still in `~/.edifier-eq-backup.json`).
+   Keep it or put the old one back?
+
+Checks that need the owner at the speakers or the screen:
+- The volume number follows the knob step by step with the lighter connection.
+- The scroll wheel over the number, by hand.
+- The power button and menu item (they switch the speakers off).
+- The input plug test (`0x61` while plugging sources).
+- README screenshots (the display was off at night).
+- Verify: phone-app handover, wake from sleep, reboot with Start with Windows, light theme and
+  High Contrast, the "can't connect" message, a taskbar at the top or side.
+
 ## Done
 
 - [x] **App icon**: flat, abstract, vector line-style, in the Edifier MR4.5's own look and colours,
