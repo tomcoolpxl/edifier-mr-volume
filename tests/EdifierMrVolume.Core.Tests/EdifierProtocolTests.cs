@@ -117,6 +117,61 @@ public class EdifierProtocolTests
     [Fact]
     public void Power_off_packet() => Assert.Equal(Bytes("AA 0C CE 00 00 84"), EdifierProtocol.PowerOff());
 
+    /// <summary>An MR4.5's custom EQ reply, captured 2026-11-16 (curve "Sound Effects").</summary>
+    private const string EqReply =
+        "BB EC 43 00 38 0C 09 01 00 00 3E 09 01 00 7D 05 02 00 FA 06 03 01 F4 08 04 03 E8 06 05 07 D0 06 " +
+        "06 0F A0 06 07 1F 40 06 08 3E 80 06 A3 63 F6 6A 53 6F 75 6E 64 20 45 66 66 65 63 74 73 1D";
+
+    private static EdifierProtocol.EqCurve CapturedCurve()
+    {
+        var frame = Assert.Single(EdifierProtocol.ParseFrames(Bytes(EqReply)));
+        Assert.True(EdifierProtocol.TryDecodeEq(frame, out var curve));
+        return curve;
+    }
+
+    [Fact]
+    public void Eq_reply_decodes()
+    {
+        var curve = CapturedCurve();
+        Assert.Equal(12, curve.MaxGain);
+        Assert.Equal(6, curve.Flat);
+        Assert.Equal(1, curve.Slot);
+        Assert.Equal([62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000], curve.Bands.Select(b => b.Frequency));
+        Assert.Equal([3, -1, 0, 2, 0, 0, 0, 0, 0], curve.Steps);
+    }
+
+    /// <summary>The packet that raised 62 Hz from 10 to 11 in the 2026-11-16 test.</summary>
+    [Fact]
+    public void Setting_a_band_echoes_slot_index_and_frequency()
+    {
+        var curve = CapturedCurve();
+        Assert.Equal(Bytes("AA 0C 44 00 05 01 00 00 3E 0B 49"), EdifierProtocol.SetEqBand(curve, 0, 11));
+        Assert.Equal(Bytes("AA 0C 44 00 05 01 08 3E 80 0C D2"), EdifierProtocol.SetEqBand(curve, 8, 99)); // clamped to 12
+    }
+
+    [Fact]
+    public void Short_eq_replies_are_rejected()
+    {
+        // Valid checksum, but 9 bands announced and only one sent.
+        var frame = Assert.Single(EdifierProtocol.ParseFrames(Bytes("BB EC 43 00 07 0C 09 01 00 00 3E 09 4E")));
+        Assert.True(frame.ChecksumOk);
+        Assert.False(EdifierProtocol.TryDecodeEq(frame, out _));
+    }
+
+    [Fact]
+    public void Presets_match_by_band_frequency()
+    {
+        var curve = CapturedCurve(); // +3/-1/0/+2: no preset
+        Assert.Null(EqPresets.Match(curve));
+
+        var deepBalanced = EqPresets.Find("Deep + balanced")!;
+        var steps = deepBalanced.StepsFor(curve);
+        Assert.Equal([3, -2, 0, 0, 0, 2, 0, 0, 0], steps);
+        var applied = curve;
+        for (var i = 0; i < steps.Length; i++) applied = applied.WithGain(i, applied.Flat + steps[i]);
+        Assert.Same(deepBalanced, EqPresets.Match(applied));
+    }
+
     [Fact]
     public void Firmware_reply_decodes()
     {

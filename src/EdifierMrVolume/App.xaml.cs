@@ -31,6 +31,7 @@ public partial class App : Application
     private System.Drawing.Color _iconColor;
     private ToggleMenuFlyoutItem _connectItem = null!;
     private ToggleMenuFlyoutItem _autostartItem = null!;
+    private MenuFlyoutItem _powerItem = null!;
     private VolumeWindow? _window;
     private AppSettings _settings = new();
     private readonly UISettings _uiSettings = new();
@@ -109,9 +110,12 @@ public partial class App : Application
     {
         _connectItem = new ToggleMenuFlyoutItem { Text = "Connected to speaker", Command = new RelayCommand(ToggleConnection) };
         _autostartItem = new ToggleMenuFlyoutItem { Text = "Start with Windows", Command = new RelayCommand(ToggleAutostart) };
+        // Owner's choice (2026-11-16): no confirmation.
+        _powerItem = new MenuFlyoutItem { Text = "Switch speakers off", IsEnabled = false, Command = new RelayCommand(() => _ = PowerOffAsync()) };
 
         var menu = new MenuFlyout();
         menu.Items.Add(new MenuFlyoutItem { Text = "Open", Command = new RelayCommand(ShowWindow) });
+        menu.Items.Add(_powerItem);
         menu.Items.Add(new MenuFlyoutSeparator());
         menu.Items.Add(_connectItem);
         menu.Items.Add(_autostartItem);
@@ -248,10 +252,11 @@ public partial class App : Application
             _ => $"{model}: disconnected",
         };
         _connectItem.IsChecked = _speaker.IsRunning;
+        _powerItem.IsEnabled = state == SpeakerState.Connected && !_speaker.SwitchedOff;
         _autostartItem.IsChecked = Autostart.IsEnabled;
         if (_window is not null)
         {
-            _window.Update(state, volume, model, _speaker.Detail, _speaker.SoundMode);
+            _window.Update(state, volume, model, _speaker.Detail, _speaker.SoundMode, _speaker.Equalizer);
             _window.UpdateDiagnostics(_speaker.GetDiagnostics(), model, AppVersion);
         }
     }
@@ -267,8 +272,8 @@ public partial class App : Application
     {
         if (_window is null)
         {
-            _window = new VolumeWindow(_speaker, _settings, ReconnectAsync, ApplySettings);
-            _window.Update(_speaker.State, _speaker.Volume, DisplayModel, _speaker.Detail, _speaker.SoundMode);
+            _window = new VolumeWindow(_speaker, _settings, ReconnectAsync, PowerOffAsync, ApplySettings);
+            _window.Update(_speaker.State, _speaker.Volume, DisplayModel, _speaker.Detail, _speaker.SoundMode, _speaker.Equalizer);
             _window.UpdateDiagnostics(_speaker.GetDiagnostics(), DisplayModel, AppVersion);
         }
         return _window;
@@ -280,6 +285,15 @@ public partial class App : Application
         Log.Write("User asked to reconnect.");
         await _speaker.StopAsync();
         _speaker.Start();
+        Refresh();
+    }
+
+    /// <summary>The panel's power button and the menu item: switch the speakers off now.</summary>
+    private async Task PowerOffAsync()
+    {
+        Log.Write("User switched the speakers off.");
+        if (!await _speaker.PowerOffAsync(TimeSpan.FromSeconds(2)))
+            Log.Write("Could not switch the speakers off.");
         Refresh();
     }
 

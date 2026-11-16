@@ -63,6 +63,14 @@ public sealed class SpeakerConnection : IAsyncDisposable
     /// <summary>Commands waiting to be written (sound mode switches); sent before the next poll.</summary>
     private readonly System.Collections.Concurrent.ConcurrentQueue<byte[]> _outbox = new();
     private EdifierProtocol.SoundState? _sound;
+    private EdifierProtocol.EqCurve? _eq;
+    /// <summary>EQ steps to apply; only the latest request counts (slider drags).</summary>
+    private int[]? _pendingEq;
+    /// <summary>Set while a write waits for the speaker's reply to that command.</summary>
+    private TaskCompletionSource? _replyWaiter;
+    private byte _replyCommand;
+    /// <summary>This app switched the speakers off; say so until they come back.</summary>
+    private volatile bool _switchedOff;
     private CancellationTokenSource? _cts;
     private Task? _loop;
     private int _pendingSet = -1;
@@ -121,6 +129,26 @@ public sealed class SpeakerConnection : IAsyncDisposable
         return true;
     }
 
+    /// <summary>The custom EQ curve as the speaker last reported it, or null.</summary>
+    public EdifierProtocol.EqCurve? Equalizer { get { lock (_gate) return _eq; } }
+
+    /// <summary>
+    /// Sets the custom EQ to these steps from flat, one per band of <see cref="Equalizer"/>.
+    /// Only bands that differ are written; rapid calls are coalesced to the latest.
+    /// </summary>
+    public bool RequestEqualizer(int[] steps)
+    {
+        var current = Equalizer;
+        if (current is null || steps.Length != current.Bands.Count || State != SpeakerState.Connected) return false;
+        Interlocked.Exchange(ref _pendingEq, (int[])steps.Clone());
+        Kick();
+        return true;
+    }
+
+    /// <summary>Shown while the speakers are off because this app switched them off.</summary>
+    public const string SwitchedOffHint =
+        "Switched off. Switch the speakers on with their power button; the app reconnects by itself.";
+
     /// <summary>
     /// Switches the speakers off right away (not queued), for the power-off button and for
     /// "switch off when the PC sleeps", where Windows gives only a moment. True if it was sent.
@@ -134,7 +162,12 @@ public sealed class SpeakerConnection : IAsyncDisposable
             var status = await write.WriteValueAsync(EdifierProtocol.PowerOff().AsBuffer(), _writeOption)
                 .AsTask().WaitAsync(timeout).ConfigureAwait(false);
             _log($"Power off sent: {status}.");
-            return status == GattCommunicationStatus.Success;
+            if (status != GattCommunicationStatus.Success) return false;
+            // The speaker doesn't answer and the link goes; drop it now instead of waiting for
+            // the silence timeout, and say why until the speakers are back.
+            _switchedOff = true;
+            Kick();
+            return true;
         }
         catch (Exception ex)
         {
@@ -142,6 +175,9 @@ public sealed class SpeakerConnection : IAsyncDisposable
             return false;
         }
     }
+
+    /// <summary>True from a successful power-off until the speaker is connected again.</summary>
+    public bool SwitchedOff => _switchedOff;
 
     public bool IsRunning { get { lock (_gate) return _cts is not null; } }
 
@@ -248,7 +284,7 @@ public sealed class SpeakerConnection : IAsyncDisposable
         {
             try
             {
-                SetState(SpeakerState.Searching, failures == 0 ? null : Detail);
+                SetState(SpeakerState.Searching, _switchedOff ? SwitchedOffHint : failures == 0 ? null : Detail);
                 ulong address;
                 // After 15 s without finding it, say what to check.
                 using (new Timer(_ => SetHintIfStillSearching(), null, TimeSpan.FromSeconds(15), Timeout.InfiniteTimeSpan))
@@ -268,6 +304,7 @@ public sealed class SpeakerConnection : IAsyncDisposable
                     throw;
                 }
                 failures = 0;
+                _switchedOff = false;
                 _wake.Wait(0); // a wake-up from before this connection is no longer needed
                 lock (_gate)
                 {
@@ -418,6 +455,11 @@ public sealed class SpeakerConnection : IAsyncDisposable
         var askedForInfo = false;
         while (!ct.IsCancellationRequested)
         {
+            if (_switchedOff)
+            {
+                _linkLost = true; // nothing to unsubscribe from: the speaker is off
+                return;
+            }
             if (_linkSuspect)
             {
                 // Windows said "disconnected". Believe it only if it lasts.
@@ -453,10 +495,17 @@ public sealed class SpeakerConnection : IAsyncDisposable
                 continue;
             }
 
+            // One command at a time, each after the speaker has answered the previous one.
             while (_outbox.TryDequeue(out var queued))
             {
-                await WriteAsync(queued, ct).ConfigureAwait(false);
+                await WriteAndWaitAsync(queued, ct).ConfigureAwait(false);
                 nextModePoll = Environment.TickCount64 + 400; // read the result back soon
+            }
+
+            if (Interlocked.Exchange(ref _pendingEq, null) is { } steps)
+            {
+                await WriteEqualizerAsync(steps, ct).ConfigureAwait(false);
+                continue;
             }
 
             if (!askedForInfo)
@@ -464,6 +513,9 @@ public sealed class SpeakerConnection : IAsyncDisposable
                 askedForInfo = true;
                 await WriteAsync(EdifierProtocol.BuildCommand(EdifierProtocol.CmdGetFirmware), ct).ConfigureAwait(false);
                 await WriteAsync(EdifierProtocol.BuildCommand(EdifierProtocol.CmdGetModelName), ct).ConfigureAwait(false);
+                // The EQ only changes through this app or the phone app (which can't be connected
+                // at the same time), so it is read once per connection, not polled.
+                await WriteAsync(EdifierProtocol.BuildCommand(EdifierProtocol.CmdGetEq), ct).ConfigureAwait(false);
             }
 
             // The sound mode changes rarely (button on the speaker, the phone app): every 5 s.
@@ -484,6 +536,63 @@ public sealed class SpeakerConnection : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Writes the bands that differ from the current curve, one at a time (each waits for the
+    /// speaker's ack), then reads the curve back.
+    /// </summary>
+    private async Task WriteEqualizerAsync(int[] steps, CancellationToken ct)
+    {
+        var written = 0;
+        for (var band = 0; band < steps.Length; band++)
+        {
+            var current = Equalizer;
+            if (current is null || band >= current.Bands.Count) return;
+            var gain = Math.Clamp(current.Flat + steps[band], 0, current.MaxGain);
+            if (current.Bands[band].Gain == gain) continue;
+            if (!await WriteAndWaitAsync(EdifierProtocol.SetEqBand(current, band, gain), ct).ConfigureAwait(false))
+            {
+                _log($"EQ: no ack for {current.Bands[band].Frequency} Hz.");
+                break;
+            }
+            written++;
+            // Keep our copy current, so the next request compares against what the speaker has.
+            lock (_gate) _eq = _eq?.WithGain(band, gain);
+        }
+        if (written > 0)
+        {
+            _log($"EQ: {written} band(s) set.");
+            await WriteAsync(EdifierProtocol.BuildCommand(EdifierProtocol.CmdGetEq), ct).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>Writes a command and waits (up to 1.5 s) for the speaker's reply to it.</summary>
+    private async Task<bool> WriteAndWaitAsync(byte[] packet, CancellationToken ct)
+    {
+        var waiter = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        lock (_gate)
+        {
+            _replyCommand = packet[2];
+            _replyWaiter = waiter;
+        }
+        try
+        {
+            await WriteAsync(packet, ct).ConfigureAwait(false);
+            await waiter.Task.WaitAsync(TimeSpan.FromMilliseconds(1500), ct).ConfigureAwait(false);
+            return true;
+        }
+        catch (TimeoutException)
+        {
+            return false;
+        }
+        finally
+        {
+            lock (_gate)
+            {
+                if (_replyWaiter == waiter) _replyWaiter = null;
+            }
+        }
+    }
+
     private async Task WriteAsync(byte[] packet, CancellationToken ct)
     {
         var status = await _write!.WriteValueAsync(packet.AsBuffer(), _writeOption).AsTask(ct).ConfigureAwait(false);
@@ -496,6 +605,13 @@ public sealed class SpeakerConnection : IAsyncDisposable
         Interlocked.Exchange(ref _lastRxTicks, Environment.TickCount64);
         foreach (var frame in EdifierProtocol.ParseFrames(args.CharacteristicValue.ToArray()))
         {
+            TaskCompletionSource? waiter = null;
+            lock (_gate)
+            {
+                if (_replyWaiter is not null && frame.ChecksumOk && frame.Command == _replyCommand) waiter = _replyWaiter;
+            }
+            waiter?.TrySetResult();
+
             if (EdifierProtocol.TryDecodeVolume(frame, out var level))
             {
                 VolumeLevel? previous;
@@ -517,6 +633,16 @@ public sealed class SpeakerConnection : IAsyncDisposable
                 {
                     changed = _sound is null || !_sound.Equals(sound);
                     _sound = sound;
+                }
+                if (changed) StateChanged?.Invoke(this, EventArgs.Empty);
+            }
+            else if (EdifierProtocol.TryDecodeEq(frame, out var eq))
+            {
+                bool changed;
+                lock (_gate)
+                {
+                    changed = _eq is null || !_eq.Equals(eq);
+                    _eq = eq;
                 }
                 if (changed) StateChanged?.Invoke(this, EventArgs.Empty);
             }
@@ -551,10 +677,13 @@ public sealed class SpeakerConnection : IAsyncDisposable
     {
         Interlocked.Exchange(ref _pendingSet, -1);
         while (_outbox.TryDequeue(out _)) { } // a mode switch for a link that's gone is stale
+        Interlocked.Exchange(ref _pendingEq, null);
         lock (_gate)
         {
             _volume = null;
             _sound = null;
+            _eq = null;
+            _replyWaiter = null;
             _connectedSince = null;
         }
 

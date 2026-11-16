@@ -92,6 +92,67 @@ public static class EdifierProtocol
 
     public static byte[] PowerOff() => BuildCommand(CmdPowerOff);
 
+    /// <summary>
+    /// Custom EQ curve (heard in Custom mode): [maxGain][bandCount][slot], then per band
+    /// [index][freqHi][freqLo][gain], then the curve's name. The MR4.5 has 9 bands, gain 0-12.
+    /// </summary>
+    public const byte CmdGetEq = 0x43;
+    /// <summary>Sets one band: [slot][index][freqHi][freqLo][gain]; the speaker acks 01.</summary>
+    public const byte CmdSetEqBand = 0x44;
+
+    public sealed record EqBand(int Index, int Frequency, int Gain);
+
+    /// <summary>The custom EQ curve as the speaker reported it.</summary>
+    public sealed record EqCurve(int MaxGain, byte Slot, IReadOnlyList<EqBand> Bands)
+    {
+        /// <summary>The gain byte for "no change" (6 on the MR4.5).</summary>
+        public int Flat => MaxGain / 2;
+
+        /// <summary>Largest step up or down from flat.</summary>
+        public int Range => MaxGain - Flat;
+
+        /// <summary>Each band as steps from flat (−6 to +6 on the MR4.5).</summary>
+        public int[] Steps => Bands.Select(b => b.Gain - Flat).ToArray();
+
+        public EqCurve WithGain(int band, int gain) =>
+            this with { Bands = Bands.Select((b, i) => i == band ? b with { Gain = gain } : b).ToArray() };
+
+        public bool Equals(EqCurve? other) =>
+            other is not null && MaxGain == other.MaxGain && Slot == other.Slot && Bands.SequenceEqual(other.Bands);
+
+        public override int GetHashCode() => HashCode.Combine(MaxGain, Slot, Bands.Count);
+    }
+
+    public static bool TryDecodeEq(Frame frame, out EqCurve curve)
+    {
+        curve = null!;
+        var p = frame.Payload;
+        if (!frame.ChecksumOk || frame.Command != CmdGetEq || p.Length < 3) return false;
+        int maxGain = p[0], count = p[1];
+        if (maxGain is < 2 or > 30 || count is < 1 or > 16 || p.Length < 3 + 4 * count) return false;
+        var bands = new EqBand[count];
+        for (var i = 0; i < count; i++)
+        {
+            var at = 3 + 4 * i;
+            bands[i] = new EqBand(p[at], (p[at + 1] << 8) | p[at + 2], p[at + 3]);
+            if (bands[i].Gain > maxGain) return false;
+        }
+        curve = new EqCurve(maxGain, p[2], bands);
+        return true;
+    }
+
+    /// <summary>
+    /// Sets one band, by its position in the reported curve, to a gain byte (0..MaxGain). The
+    /// slot, band index and frequency are echoed from the speaker's own reply.
+    /// </summary>
+    public static byte[] SetEqBand(EqCurve current, int band, int gain)
+    {
+        var b = current.Bands[band];
+        gain = Math.Clamp(gain, 0, current.MaxGain);
+        return BuildCommand(CmdSetEqBand,
+            [current.Slot, (byte)b.Index, (byte)(b.Frequency >> 8), (byte)(b.Frequency & 0xFF), (byte)gain]);
+    }
+
     /// <summary>Volume range the MR4.5 reports when it doesn't say otherwise.</summary>
     public const int DefaultMaxVolume = 30;
 
