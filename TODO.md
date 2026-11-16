@@ -139,7 +139,7 @@ Convenience:
 - [x] Mute (click the speaker symbol; click again restores). *Tested: 7 → 0 → 7.*
 - [x] Start volume (setting; set a level when the app connects; off by default). *Tested: start 5,
       Reconnect, the app set 6 → 5 on connecting. Switched back off.*
-- [ ] **Investigate the room tuning** (owner, 2026-11-16: "investigate acoustic tuning and slope
+- [x] **Investigate the room tuning** (owner, 2026-11-16: "investigate acoustic tuning and slope
       and all this weird shit"): the six tuning bytes in the sound-mode reply (`0xD5` →
       `[mode][index][byte0][lowCut][slope][space][desktop]`, now `02 00 1E 03 00 01`): low cut
       (30 Hz), low-cut slope (−24 dB/oct), acoustic space compensation (0 dB, range 0 to −4 dB
@@ -147,6 +147,35 @@ Convenience:
       and its values (manual, ConneX, reviews, measurements), and how ConneX sets them (EdifierControl
       has `makeSetEq`/calibration code for this). Report before building anything; remember the
       malformed-`0xC4` incident: writes only from the speaker's own bytes.
+      *Investigated 2026-11-16 (online and the open-source code; nothing written to the speaker).
+      ConneX calls it **Acoustic Tuning**; the six bytes after the mode are ConneX's
+      `EqCalibrationBean` ([omarchy-edifier-mr5](https://github.com/Devis99/omarchy-edifier-mr5),
+      decoded from the ConneX Android app and checked live: ConneX's 30 Hz / −24 dB/oct / −2 dB /
+      desktop on read back as `02 02 00 1e 03 02 01`):*
+      | byte | meaning | values | owner's speaker now |
+      |---|---|---|---|
+      | index | calibration index | unknown meaning; echo as read | `02` |
+      | byte0 | 0 normal; 1 = "DSP reset for calibration" ([EdifierControl](https://github.com/D4n13l3k00/EdifierControl)) | echo as read; never 1 | `00` |
+      | low cut | high-pass frequency, in Hz | 20-100 in 5 Hz steps | `1E` = 30 Hz |
+      | slope | steepness of the low cut | 0-3 = 6/12/18/24 dB per octave | `03` = 24 dB/oct |
+      | acoustic space | bass cut for wall/corner boost | 0-4 = 0 to −4 dB | `00` = 0 dB |
+      | desktop control | cuts the boost a desk reflection causes | 0 off, 1 on | `01` = on |
+      *MR4.5 manual ([ManualsLib](https://www.manualslib.com/manual/4579783/Edifier-Mr4-5.html),
+      section 8 "Acoustic tuning"): acoustic space "0 dB for being in the middle of the room and
+      -4 dB for being in the corner. The closer the speaker is to a wall or corner, the smaller
+      the value"; low cut "Attenuate frequencies lower than the specified frequency (20 Hz to
+      100 Hz) at a selected slope (6, 12, 18, or 24 dB/octave)"; desktop control: on a desk
+      "there may be an apparent increase in the decibel level at certain frequencies. Enable the
+      feature to mitigate this effect." EdifierControl's README: 0 dB free-standing, −2 dB near a
+      wall, −4 dB in a corner. So the owner's speaker is set for "free-standing, on a desk", with
+      a low cut at 30 Hz that keeps the 4.5" woofer from trying to play below what it can (it is
+      −10 dB at 44 Hz per Erin). Setting it: `0xC4` with all 7 bytes, the speaker's own `index`
+      and `byte0` echoed (as the sound-mode switch already does). **Owner to decide**: add Room
+      tuning to the app (Settings › Sound: low cut, slope, acoustic space, desktop control) or
+      not.*
+      *Also found: the first byte of the `0x43` EQ reply is the layout (12 = 9 bands), not the
+      maximum gain as the code had it; fixed. The dB per EQ step is still unknown: EdifierControl
+      shows 0.5 dB, omarchy-edifier-mr3 assumes 1 dB; neither measured it.*
 - [ ] **Scroll wheel over the notification-area number changes the volume, one step per notch**
       (owner, 2026-11-16: "If I hover over the taskbar thing, the scroll wheel of the mouse should
       control the volume one by one. Be careful that I don't, you know. But there is a limit.").
