@@ -300,15 +300,34 @@
                             AutomationProperties.Name="Start volume"
                             Toggled="StartSwitch_Toggled" />
                         <controls:SettingsExpander.Items>
-                            <controls:SettingsCard x:Name="StartCard" Header="Level">
-                                <NumberBox
-                                    x:Name="StartBox"
-                                    Minimum="0"
-                                    Maximum="30"
-                                    SmallChange="1"
-                                    SpinButtonPlacementMode="Inline"
-                                    AutomationProperties.Name="Start level"
-                                    ValueChanged="StartBox_ValueChanged" />
+                            <controls:SettingsCard
+                                x:Name="StartCard"
+                                Header="Level"
+                                ContentAlignment="Vertical"
+                                HorizontalContentAlignment="Stretch">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Slider
+                                        x:Name="StartSlider"
+                                        Minimum="0"
+                                        Maximum="30"
+                                        StepFrequency="1"
+                                        SmallChange="1"
+                                        LargeChange="3"
+                                        VerticalAlignment="Center"
+                                        AutomationProperties.Name="Start level"
+                                        ValueChanged="StartSlider_ValueChanged" />
+                                    <TextBlock
+                                        x:Name="StartValue"
+                                        Grid.Column="1"
+                                        MinWidth="56"
+                                        Style="{StaticResource BodyStrongTextBlockStyle}"
+                                        TextAlignment="Right"
+                                        VerticalAlignment="Center" />
+                                </Grid>
                             </controls:SettingsCard>
                         </controls:SettingsExpander.Items>
                     </controls:SettingsExpander>

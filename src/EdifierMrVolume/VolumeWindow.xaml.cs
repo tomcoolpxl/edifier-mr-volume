@@ -590,7 +590,8 @@ public sealed partial class VolumeWindow : Window
             SetLimitEnabled(_settings.VolumeLimitEnabled);
 
             StartSwitch.IsOn = _settings.StartVolumeEnabled;
-            StartBox.Value = _settings.StartVolume;
+            StartSlider.Value = _settings.StartVolume;
+            StartValue.Text = $"{_settings.StartVolume} of {VolumeMax}";
             SetStartEnabled(_settings.StartVolumeEnabled);
 
             SleepOffSwitch.IsOn = _settings.PowerOffOnSleep;
@@ -637,7 +638,9 @@ public sealed partial class VolumeWindow : Window
     {
         StartCard.IsEnabled = enabled;
         StartCard.Description = enabled ? null! : "Turn on Start volume to choose.";
-        StartExpander.Description = enabled ? $"Sets {_settings.StartVolume} when the app connects." : "Sets a level when the app connects.";
+        StartExpander.Description = enabled
+            ? $"Sets {_settings.StartVolume} of {VolumeMax} when the app connects."
+            : "Sets a level when the app connects.";
     }
 
     private void HideAfter_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -677,10 +680,12 @@ public sealed partial class VolumeWindow : Window
         SaveSettings($"start volume {(_settings.StartVolumeEnabled ? $"on, {_settings.StartVolume}" : "off")}");
     }
 
-    private void StartBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
+    private void StartSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
     {
-        if (_loadingSettings || double.IsNaN(args.NewValue)) return;
-        _settings.StartVolume = (int)Math.Clamp(Math.Round(args.NewValue), 0, 30);
+        var level = (int)Math.Clamp(Math.Round(e.NewValue), 0, 30);
+        StartValue.Text = $"{level} of {VolumeMax}";
+        if (_loadingSettings || level == _settings.StartVolume) return;
+        _settings.StartVolume = level;
         SetStartEnabled(_settings.StartVolumeEnabled);
         SaveSettings($"start volume {_settings.StartVolume}");
     }
