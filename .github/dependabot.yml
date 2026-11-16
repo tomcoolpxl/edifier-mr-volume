@@ -1,0 +1,34 @@
+# Weekly update proposals as pull requests, so a dependency with a fix doesn't wait for someone
+# to notice it. As in cash: one grouped pull request per ecosystem for the patch and minor
+# updates, and one pull request per major update. CI (ci.yml) builds, tests, smoke-launches and
+# test-installs each one before it can be merged; nothing merges itself.
+version: 2
+updates:
+  # Windows App SDK, H.NotifyIcon, the Community Toolkit settings controls and the test packages.
+  - package-ecosystem: nuget
+    directories:
+      - /src/EdifierMrVolume
+      - /src/EdifierMrVolume.Core
+      - /tests/EdifierMrVolume.Core.Tests
+    schedule:
+      interval: weekly
+    groups:
+      nuget:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  # The SDK global.json names (CI installs it with setup-dotnet).
+  - package-ecosystem: dotnet-sdk
+    directory: /
+    schedule:
+      interval: weekly
+
+  # The pinned commits in .github/workflows.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
