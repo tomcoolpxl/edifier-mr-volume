@@ -2,7 +2,7 @@
 
 An unofficial Windows app for **Edifier MR studio monitors** (MR4.5, MR3, MR5). It shows and
 sets the speakers' own hardware volume in the notification area and follows the physical volume
-knob live, and it sets the speakers' sound mode, equalizer and power saving. It talks to the
+knob live, and it sets the speakers' sound mode, equalizer, room tuning and power saving. It talks to the
 speaker's Bluetooth LE control interface (the one the EDIFIER ConneX phone app uses), so it
 doesn't depend on the Windows volume slider. Control runs over its own Bluetooth LE link,
 separate from the audio input (tested with the speakers fed by a USB audio interface).
@@ -31,28 +31,38 @@ control service it exposes.
 
 - The notification-area icon *is* the current volume (0–30), drawn at the taskbar's pixel size.
   Scroll the mouse wheel over it to change the volume one step per notch.
-- Click it for the panel: volume slider, mute button, the sound mode (**Monitor**, **Music**,
-  **Custom**) and a button that switches the speakers off. The mouse wheel and arrow keys work
-  too, and Esc closes it.
+  From the keyboard: Win+B, the arrow keys to the number, then Enter opens the panel and
+  Shift+F10 the menu.
+- Click it for the panel: the sound mode (**Monitor**, **Music**, **Custom**), the volume slider,
+  a mute button and a button that turns the speakers off. The mouse wheel and arrow keys work
+  too, and Esc closes it. When the app can't connect, the panel says why in plain words, with a
+  button that helps (Reconnect, Bluetooth settings, Connect).
 - Settings, behind the gear:
   - **Auto-open panel** (off by default): turning the knob on the speaker opens the panel for a
     moment without taking focus, and it closes 1, 2, 3 or 5 s after the last change. It stays
     away while a full-screen game or presentation runs.
-  - **Volume limit**: the app (slider, wheel, start volume) never goes higher; the knob isn't
-    limited. **Start volume**: set a level whenever the app connects.
+  - **Volume limit** (on at 24 for new installs): the app (slider, wheel, start volume) never
+    raises the volume above it; the knob isn't limited. **Start volume**: set a level whenever
+    the app connects.
   - **Equalizer**: three presets, **Deep bass**, **Balanced** and **Deep + balanced**, shaped on
-    the MR4.5's published measurements and chosen by ear, plus **Custom**, your own 9-band curve
-    (the app keeps it, since a preset overwrites the speaker's one custom curve). Choosing one
-    switches the speakers to Custom mode.
-  - **Switch off when the PC sleeps** (off by default).
+    the MR4.5's published measurements and chosen by ear, plus **Your curve**, your own 9-band
+    curve (the app keeps it, since a preset overwrites the speaker's one custom curve; its bands
+    can be moved only while Your curve is chosen). Choosing one switches the speakers to Custom
+    mode.
+  - **Room**, the speakers' acoustic tuning in everyday words: **Where the speakers stand**
+    (middle of the room to a corner), **Bass** (Full, Tighter or Light bass) and **On a desk**,
+    with the numbers in small print.
+  - **Turn off when the PC sleeps** (off by default).
   - **Power saving**: the speakers' own standby after 15 minutes without sound, on or off (the
     same setting as volume 0 plus a double-press of the knob).
+  - **Connect to speaker** and **Start with Windows**, as in the menu.
   - **Diagnostics**: connection status, speaker model and firmware, Bluetooth address,
     reconnect count, last error and app version, with **Reconnect** and **Open log**.
-- Right-click for: **Open**, **Switch speakers off**, **Connected to speaker** (untick to free
+  - **About**, with **Exit**.
+- Right-click for: **Open**, **Turn off speakers**, **Connect to speaker** (clear it to free
   the link for the phone app), **Start with Windows**, **Exit**.
-- Reconnects on its own when the speaker is switched off and on, and straight away after the
-  PC wakes from sleep. Light: about 0.02 % CPU while connected.
+- Reconnects on its own when the speakers are turned off and on, and straight away after the
+  PC wakes from sleep. Light: about 0.008 % CPU while connected.
 
 ![Settings and diagnostics behind the gear button](docs/images/settings.png)
 
@@ -80,11 +90,11 @@ Start menu shortcut, can start the app when you sign in, upgrades an installed c
 This publishes a self-contained Release build (about 240 MB), installs it to
 `%LOCALAPPDATA%\Programs\EdifierMrVolume`, adds an **Edifier MR Volume** Start menu shortcut and
 starts it. Rerun it after pulling changes: it closes the running copy cleanly, so the speaker
-reconnects within seconds. Then tick **Start with Windows** in the right-click menu.
+reconnects within seconds. Then select **Start with Windows** in the right-click menu.
 
 Settings live in `%LOCALAPPDATA%\EdifierMrVolume\settings.json`, the log next to it in `log.txt`.
 To uninstall an installer copy, use Windows' **Installed apps**. For a portable or
-`install.ps1` copy: untick **Start with Windows**, choose **Exit**, then delete
+`install.ps1` copy: clear **Start with Windows**, choose **Exit**, then delete
 `%LOCALAPPDATA%\Programs\EdifierMrVolume`, `%LOCALAPPDATA%\EdifierMrVolume` and the Start menu shortcut.
 
 Command-line switches: `--show` opens the panel (launching it again while it runs does the
@@ -92,14 +102,15 @@ same), `--exit` closes the running copy.
 
 ### Volume number not visible?
 
-Windows 11 hides new notification-area icons. Turn it on under **Settings › Personalization ›
-Taskbar › Other system tray icons › EdifierMrVolume**, or drag it from the hidden-icons area onto
-the taskbar. The app shows this hint once, on its first start.
+Windows hides new notification-area icons. Turn it on under **Settings › Personalization ›
+Taskbar › Other system tray icons › Edifier MR Volume** (Windows 10: **Select which icons appear
+on the taskbar**), or drag it from the hidden-icons area onto the taskbar. The app shows this
+hint once, on its first start, with a **Taskbar settings** button.
 
 ### Phone app can't connect?
 
-The speaker accepts one BLE control client at a time. Right-click the volume number and untick
-**Connected to speaker** while you use EDIFIER ConneX; tick it again afterwards.
+The speaker accepts one BLE control client at a time. Turn off **Connect to speaker** (in the
+right-click menu or in Settings) while you use EDIFIER ConneX; turn it on again afterwards.
 
 ## Develop
 
@@ -177,7 +188,9 @@ manual, section 8):
 | acoustic space | bass cut for the boost near walls | 0–4 = 0 to −4 dB (0 in the middle of the room, −4 in a corner) |
 | desktop control | cuts the boost from a desk reflection | 0 off, 1 on |
 
-The app doesn't change the room tuning (yet); it only echoes these bytes when it switches the
+The app changes only the low cut, slope, acoustic space and desktop bytes, each checked
+against the ranges above, and always echoes the speaker's own index and DSP byte. It echoes all six
+bytes unchanged when it switches the
 sound mode. How many dB one EQ step is isn't published: EdifierControl shows 0.5 dB, the MR3
 project assumes 1 dB, so the app shows steps.
 
@@ -195,7 +208,7 @@ python -m venv .venv
 .venv\Scripts\python.exe tools\eq_audition.py --address AA:BB:CC:DD:EE:FF deep   # hear a preset (writes!); "restore" puts the saved curve back
 ```
 
-Quit the tray app (or untick **Connected to speaker**) first, since only one client can connect.
+Exit the app (or turn off **Connect to speaker**) first, since only one client can connect.
 
 ## Credits
 
