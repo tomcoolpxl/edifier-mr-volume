@@ -152,7 +152,7 @@ public class EdifierProtocolTests
     public void Eq_reply_decodes()
     {
         var curve = CapturedCurve();
-        Assert.Equal(12, curve.MaxGain);
+        Assert.Equal(12, curve.Layout);
         Assert.Equal(6, curve.Flat);
         Assert.Equal(1, curve.Slot);
         Assert.Equal([62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000], curve.Bands.Select(b => b.Frequency));

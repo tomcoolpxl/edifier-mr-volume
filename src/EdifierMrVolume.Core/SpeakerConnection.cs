@@ -566,7 +566,7 @@ public sealed class SpeakerConnection : IAsyncDisposable
         {
             var current = Equalizer;
             if (current is null || band >= current.Bands.Count) return;
-            var gain = Math.Clamp(current.Flat + steps[band], 0, current.MaxGain);
+            var gain = Math.Clamp(current.Flat + steps[band], 0, EdifierProtocol.EqCurve.MaxGain);
             if (current.Bands[band].Gain == gain) continue;
             if (!await WriteAndWaitAsync(EdifierProtocol.SetEqBand(current, band, gain), ct).ConfigureAwait(false))
             {
