@@ -37,6 +37,17 @@ either offered or named as deliberately left out.
       owner's choice (2026-11-16), with the labels made for them.*
 
 ## To build: picked by the owner
+- [x] **"Open log" failed: Notepad said "The system cannot find the path specified"** (owner,
+      2026-11-16, "Make the app more robust"). *Cause: I had started the app from my shell, which
+      runs inside the Claude app's MSIX container; Windows redirected the app's writes to
+      %LOCALAPPDATA% into Claude's private folder (`Packages\Claude_…\LocalCache\Local`), so the
+      log and settings existed only there: Notepad (outside) couldn't find them, and the copy that
+      starts at sign-in would have started from scratch. The process has no package identity, so
+      the app now tests where a marker file lands; if it is inside some app's container it starts
+      itself again through Explorer (tested: that runs outside) and quits, and a copy outside that
+      finds no settings takes over a container copy's settings and log. Tested 2026-11-16 02:55:
+      started from the container, the app relaunched with explorer.exe as parent, took the
+      settings and log over into the real folder and removed the container copy.*
 
 UX fixes:
 - [x] Panel sizes to its content (text scaling). *Done: measures its content when shown and when
