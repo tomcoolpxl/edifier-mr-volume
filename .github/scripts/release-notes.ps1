@@ -141,10 +141,11 @@ if (-not $Changelog) {
     $body += @(
         '## Install',
         '',
-        "- **Installer**, per user, no admin: ``edifier-mr-volume-$Tag-win-x64-setup.exe``. Adds a Start menu shortcut and, if you tick it, starts with Windows; upgrades the installed version in place. Silent: ``/VERYSILENT /SUPPRESSMSGBOXES /NORESTART``.",
-        "- **Portable**: unpack ``edifier-mr-volume-$Tag-win-x64.zip`` anywhere and run ``EdifierMrVolume.exe``. Self-contained: .NET and the Windows App SDK runtime are included.",
+        "- **Installer**, per user, no admin: ``edifier-mr-volume-$Tag-win-x64-setup.exe`` (``-win-arm64-setup.exe`` on an Arm PC). Adds a Start menu shortcut and, if you tick it, starts with Windows; upgrades the installed version in place. Silent: ``/VERYSILENT /SUPPRESSMSGBOXES /NORESTART``.",
+        "- **Portable**: unpack ``edifier-mr-volume-$Tag-win-x64.zip`` (or ``-win-arm64.zip``) anywhere and run ``EdifierMrVolume.exe``. Self-contained: .NET and the Windows App SDK runtime are included.",
+        '- **Scoop**: `scoop bucket add tomcoolpxl https://github.com/tomcoolpxl/scoop-bucket`, then `scoop install edifier-mr-volume`.',
         '',
-        "Windows 10 2004 or later, x64. Unsigned, so Windows SmartScreen may warn once. Each ``.sha256`` file holds its asset's checksum.",
+        "Windows 10 2004 or later, x64 or Arm. Unsigned, so Windows SmartScreen may warn once. Each ``.sha256`` file holds its asset's checksum.",
         ''
     )
 }
