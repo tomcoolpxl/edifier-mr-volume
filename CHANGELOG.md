@@ -3,6 +3,36 @@
 What changed in each release. Written by the release workflow from the commit
 messages and the GitHub issues closed in between; see docs/RELEASING.md.
 
+## v1.2.0 (2026-11-17)
+
+### Features
+
+- **flyout:** a light in the speaker's mode colour next to the sound modes; click it for the next mode (d94aa52)
+
+### Bug fixes
+
+- **flyout:** close the panel on a click outside, also when Windows keeps another app in front (883b581)
+- **flyout:** the panel gets the keyboard focus when opened from the number (07737e1)
+
+### Documentation
+
+- README with new screenshots, an independent-project note and why Native AOT (2b05292)
+- a shorter README in plain words, with the .NET 11 SDK and Scoop (f09a888)
+- plain characters instead of long dashes, minus signs and ellipses (0310ad4)
+- architecture, protocol, contributing and security documents (a707e6b)
+- changelog with the commit hashes after the history rewrite (de73795)
+- release notes name the Arm files and Scoop (a2299a8)
+
+### Refactoring
+
+- one file per area for the window, one per class for the support code, plain comments (a366dd7)
+
+### Maintenance
+
+- check formatting with .editorconfig (ef01655)
+- **install:** third-party notices in the release files, and no debug symbols (225c49a)
+- keep the working to-do list out of the repository (ca293dc)
+
 ## v1.1.0 (2026-11-16)
 
 ### Features
