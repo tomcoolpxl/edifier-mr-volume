@@ -3,6 +3,12 @@
 What changed in each release. Written by the release workflow from the commit
 messages and the GitHub issues closed in between; see docs/RELEASING.md.
 
+## v1.2.1 (2026-11-18)
+
+### Bug fixes
+
+- **tray:** the 4 in the volume number no longer has a dark spot in its crossbar (6ab8853)
+
 ## v1.2.0 (2026-11-17)
 
 ### Features
