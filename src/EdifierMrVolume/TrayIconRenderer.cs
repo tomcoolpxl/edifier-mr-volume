@@ -37,7 +37,10 @@ internal static partial class TrayIconRenderer
 
         using var family = CreateFamily(fontFamily);
         const int style = (int)FontStyle.Regular;
-        using var path = new GraphicsPath();
+        // Winding fill: glyphs like Bahnschrift's 4 are made of overlapping strokes, and the
+        // default alternate (even-odd) fill leaves every overlap as a hole, so the 4 showed a
+        // dark square where its crossbar crosses the upright.
+        using var path = new GraphicsPath(FillMode.Winding);
         path.AddString(text, family, style, 100f, PointF.Empty, StringFormat.GenericTypographic);
         using var digitPath = new GraphicsPath();
         digitPath.AddString("0", family, style, 100f, PointF.Empty, StringFormat.GenericTypographic);
