@@ -8,9 +8,12 @@ What it does:
 
 By default it is read-only. --read sends extra query commands (e.g. 0xD5 sound
 mode, 0xD7 auto-standby, 0x43 custom EQ, 0xC6 firmware) and prints the raw
-replies. Only two flags write: --set-test lowers the volume one step and
-restores it (command 0x67), and --power-off switches the speakers off (0xCE).
-It never sends EQ, input, LED or reset commands.
+replies. Three flags write: --set-test lowers the volume one step and restores
+it (command 0x67), --power-off switches the speakers off (0xCE), and
+--step w:CMD:HEX sends any command with any payload, exactly as given. A wrong
+byte there can change settings you can't see (the sound-mode command carries
+the room tuning, and one of its bytes resets the DSP calibration), so only send
+bytes the speaker itself reported.
 
 Protocol facts are taken from two MIT-licensed reverse-engineering projects:
   - github.com/D4n13l3k00/EdifierControl  (src/protocol/protocol.hpp)

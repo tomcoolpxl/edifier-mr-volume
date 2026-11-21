@@ -1,8 +1,10 @@
 """Try EQ presets on an Edifier MR speaker by ear, then put everything back.
 
-The first run saves the speaker's current Custom EQ curve and sound mode to a JSON file.
-`apply <preset>` writes the preset's 9 bands and switches the speaker to Custom so it can be
-heard; `restore` writes the saved curve and sound mode back exactly. Every command is built
+The first preset of a session saves the speaker's current Custom EQ curve and sound mode to a
+JSON file; later presets keep that first copy. `apply <preset>` writes the preset's 9 bands and
+switches the speaker to Custom so it can be heard; `restore` writes the saved curve and sound
+mode back exactly and then deletes the file, so the next session saves the speaker's state as it
+is then, not an old one. Every command is built
 from what the speaker itself reports (band numbers, frequencies, the 7 sound-mode bytes);
 nothing is typed by hand.
 
@@ -77,6 +79,9 @@ async def run(address: str, action: str, save_path: Path) -> int:
             return 2
         bands = [(p[3 + 4 * i], (p[4 + 4 * i] << 8) | p[5 + 4 * i], p[6 + 4 * i]) for i in range(count)]
 
+        if action == "restore" and not save_path.exists():
+            print(f"No saved curve at {save_path}; nothing to restore.")
+            return 2
         if not save_path.exists():
             save_path.write_text(json.dumps({
                 "flag": flag,
@@ -117,6 +122,10 @@ async def run(address: str, action: str, save_path: Path) -> int:
             print(f"  {label:>7}: {gain - FLAT:+d}")
         ok = now == gains and mode["payload"] == mode_payload
         print("Read back: " + ("matches." if ok else "DOES NOT MATCH, run 'restore'."))
+        if ok and action == "restore":
+            # Session over: the next one saves the speaker's state as it is then.
+            save_path.unlink()
+            print(f"Removed {save_path}.")
         return 0 if ok else 4
 
 
