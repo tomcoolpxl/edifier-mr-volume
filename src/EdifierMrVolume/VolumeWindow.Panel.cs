@@ -271,20 +271,11 @@ public sealed partial class VolumeWindow
         _speaker.RequestVolume(level);
     }
 
+    /// <summary>The app keeps the level to go back to, shared with the M shortcut.</summary>
     private void MuteButton_Click(object sender, RoutedEventArgs e)
     {
-        if (!VolumeSlider.IsEnabled) return;
-        var current = (int)Math.Round(VolumeSlider.Value);
-        if (current > 0)
-        {
-            _levelBeforeMute = current;
-            VolumeSlider.Value = 0;
-        }
-        else
-        {
-            VolumeSlider.Value = _levelBeforeMute ?? 10;
-            _levelBeforeMute = null;
-        }
+        if (VolumeSlider.IsEnabled && _commands.ToggleMute((int)Math.Round(VolumeSlider.Value)) is { } target)
+            VolumeSlider.Value = target;
         UpdateMuteButton((int)Math.Round(VolumeSlider.Value));
     }
 

@@ -28,6 +28,10 @@ internal sealed class AppSettings
     public bool StartVolumeEnabled { get; set; }
     public int StartVolume { get; set; } = 7;
 
+    /// <summary>Keyboard shortcuts in any app (modifiers + Up, Down, M). Off by default.</summary>
+    public bool HotkeysEnabled { get; set; }
+    public string HotkeyModifiers { get; set; } = Hotkeys.ModifierChoices[0];
+
     /// <summary>The one-time hint about Windows hiding new notification-area icons was shown.</summary>
     public bool FirstRunDone { get; set; }
 
@@ -57,6 +61,7 @@ internal sealed class AppSettings
                 if (!HideChoices.Contains(loaded.HideAfterSeconds)) loaded.HideAfterSeconds = HideChoices[0];
                 loaded.VolumeLimit = Math.Clamp(loaded.VolumeLimit, 1, 30);
                 loaded.StartVolume = Math.Clamp(loaded.StartVolume, 0, 30);
+                if (!Hotkeys.ModifierChoices.Contains(loaded.HotkeyModifiers)) loaded.HotkeyModifiers = Hotkeys.ModifierChoices[0];
                 return loaded;
             }
         }

@@ -356,6 +356,24 @@
                             </controls:SettingsCard>
                         </controls:SettingsExpander.Items>
                     </controls:SettingsExpander>
+                    <controls:SettingsExpander x:Name="HotkeysExpander" Header="Keyboard shortcuts">
+                        <controls:SettingsExpander.HeaderIcon>
+                            <FontIcon Glyph="&#xE765;" />
+                        </controls:SettingsExpander.HeaderIcon>
+                        <ToggleSwitch
+                            x:Name="HotkeysSwitch"
+                            AutomationProperties.Name="Keyboard shortcuts"
+                            Toggled="HotkeysSwitch_Toggled" />
+                        <controls:SettingsExpander.Items>
+                            <controls:SettingsCard x:Name="HotkeyKeysCard" Header="Hold">
+                                <ComboBox
+                                    x:Name="HotkeyKeysBox"
+                                    MinWidth="150"
+                                    AutomationProperties.Name="Keys to hold"
+                                    SelectionChanged="HotkeyKeysBox_SelectionChanged" />
+                            </controls:SettingsCard>
+                        </controls:SettingsExpander.Items>
+                    </controls:SettingsExpander>
 
                     <TextBlock Margin="4,12,0,4" Style="{StaticResource BodyStrongTextBlockStyle}" Text="Sound" />
                     <!-- A ComboBox for 4+ choices (winui-design control map). The band sliders are

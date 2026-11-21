@@ -46,11 +46,26 @@ internal static partial class NativeMethods
         return GetDpiForMonitor(monitor, MdtEffectiveDpi, out var dpi, out _) == 0 ? dpi / 96.0 : 1.0;
     }
 
-    /// <summary>True while a full-screen app, game or presentation is in front.</summary>
-    internal static bool IsFullScreenAppRunning()
+    internal enum FullScreen
+    {
+        None,
+        /// <summary>A full-screen window (a video, a game in a borderless window) or a presentation.</summary>
+        Window,
+        /// <summary>A Direct3D game in exclusive full screen.</summary>
+        Exclusive,
+    }
+
+    /// <summary>Whether a full-screen app, game or presentation is in front.</summary>
+    internal static FullScreen FullScreenState()
     {
         // QUNS_BUSY = 2, QUNS_RUNNING_D3D_FULL_SCREEN = 3, QUNS_PRESENTATION_MODE = 4
-        return SHQueryUserNotificationState(out var state) == 0 && state is 2 or 3 or 4;
+        if (SHQueryUserNotificationState(out var state) != 0) return FullScreen.None;
+        return state switch
+        {
+            3 => FullScreen.Exclusive,
+            2 or 4 => FullScreen.Window,
+            _ => FullScreen.None,
+        };
     }
 }
 

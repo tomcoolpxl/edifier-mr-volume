@@ -34,9 +34,18 @@ public partial class App : Application
     private ToggleMenuFlyoutItem _autostartItem = null!;
     private MenuFlyoutItem _powerItem = null!;
     private TrayWheel? _wheel;
-    /// <summary>The level the wheel asked for last, and when: the base for the next notch.</summary>
+    /// <summary>
+    /// The level the wheel, a keyboard shortcut or mute asked for last, and when: the base for
+    /// the next step.
+    /// </summary>
     private int _wheelTarget;
     private long _wheelAt = long.MinValue / 2;
+    /// <summary>The level to go back to when mute is pressed again.</summary>
+    private int? _levelBeforeMute;
+    private Hotkeys? _hotkeys;
+    private VolumeOsd? _osd;
+    /// <summary>Which shortcuts another app holds, as the settings show it; null when none.</summary>
+    private string? _hotkeysTaken;
     private VolumeWindow? _window;
     /// <summary>The panel was opened from the keyboard: give focus back to the notification area when it closes.</summary>
     private bool _openedByKeyboard;
@@ -132,6 +141,7 @@ public partial class App : Application
         WatchForWakeUp();
 
         _speaker.Start();
+        ApplyHotkeys();
         Refresh();
 
         if (!_settings.FirstRunDone)
@@ -146,8 +156,127 @@ public partial class App : Application
         }
     }
 
-    /// <summary>A setting changed in the panel: apply what the connection needs to know.</summary>
-    private void ApplySettings() => _speaker.VolumeLimit = _settings.EffectiveVolumeLimit;
+    /// <summary>A setting changed in the panel: apply what the connection and the shortcuts need to know.</summary>
+    private void ApplySettings()
+    {
+        _speaker.VolumeLimit = _settings.EffectiveVolumeLimit;
+        ApplyHotkeys();
+    }
+
+    /// <summary>Registers the keyboard shortcuts while the setting is on (again only when the keys change).</summary>
+    private void ApplyHotkeys()
+    {
+        if (!_settings.HotkeysEnabled)
+        {
+            _hotkeys?.Stop();
+            ShowHotkeysTaken(null);
+            return;
+        }
+        _hotkeys ??= new Hotkeys(
+            key => _ui.TryEnqueue(() => OnHotkey(key)),
+            taken => _ui.TryEnqueue(() => ShowHotkeysTaken(_settings.HotkeysEnabled ? taken : null)));
+        _hotkeys.Start(_settings.HotkeyModifiers);
+    }
+
+    private void ShowHotkeysTaken(string? taken)
+    {
+        _hotkeysTaken = taken;
+        _window?.ShowHotkeysTaken(taken);
+    }
+
+    /// <summary>
+    /// A keyboard shortcut: one step up or down (as a wheel notch) or mute. The panel pops up
+    /// for a moment, as for the knob, since the number may be out of sight.
+    /// </summary>
+    private void OnHotkey(Hotkeys.Key key)
+    {
+        if (_exiting || _speaker.State != SpeakerState.Connected) return;
+        switch (key)
+        {
+            case Hotkeys.Key.VolumeUp:
+                OnWheel(1);
+                break;
+            case Hotkeys.Key.VolumeDown:
+                OnWheel(-1);
+                break;
+            case Hotkeys.Key.Mute:
+                ToggleMute(null);
+                break;
+        }
+        ShowChange();
+    }
+
+    /// <summary>
+    /// Shows a volume change for a moment: the panel, or over a full-screen app the volume bar,
+    /// which doesn't cover the picture. Nothing over a game in exclusive full screen.
+    /// </summary>
+    private void ShowChange()
+    {
+        switch (NativeMethods.FullScreenState())
+        {
+            case NativeMethods.FullScreen.Exclusive:
+                return;
+            case NativeMethods.FullScreen.Window:
+                if (_speaker.Volume is { } volume)
+                    (_osd ??= new VolumeOsd()).Show(ShownLevel(volume), volume.Max, OsdColors(), TimeSpan.FromSeconds(_settings.HideAfterSeconds));
+                return;
+            default:
+                EnsureWindow().Peek(_settings.HideAfterSeconds);
+                return;
+        }
+    }
+
+    /// <summary>Right after a wheel notch or a shortcut, where it is going rather than the speaker's lagging reply.</summary>
+    private int ShownLevel(VolumeLevel volume) =>
+        Environment.TickCount64 - _wheelAt < 1000 ? _wheelTarget : volume.Current;
+
+    /// <summary>The volume bar in the Windows theme (the taskbar's light or dark), with the accent colour.</summary>
+    private OsdColors OsdColors()
+    {
+        if (NativeTheme.HighContrastOn())
+        {
+            var window = NativeTheme.SystemColor(NativeTheme.ColorWindow);
+            var text = NativeTheme.SystemColor(NativeTheme.ColorWindowText);
+            return new OsdColors(window, text, text, NativeTheme.SystemColor(NativeTheme.ColorGrayText), NativeTheme.SystemColor(NativeTheme.ColorHighlight));
+        }
+        var light = LightTaskbar;
+        var accent = _uiSettings.GetColorValue(light ? UIColorType.AccentDark1 : UIColorType.AccentLight2);
+        var fill = System.Drawing.Color.FromArgb(accent.R, accent.G, accent.B);
+        return light
+            ? new OsdColors(System.Drawing.Color.FromArgb(245, 249, 249, 249), System.Drawing.Color.FromArgb(20, 0, 0, 0),
+                System.Drawing.Color.FromArgb(228, 0, 0, 0), System.Drawing.Color.FromArgb(70, 0, 0, 0), fill)
+            : new OsdColors(System.Drawing.Color.FromArgb(245, 44, 44, 44), System.Drawing.Color.FromArgb(28, 255, 255, 255),
+                System.Drawing.Color.White, System.Drawing.Color.FromArgb(90, 255, 255, 255), fill);
+    }
+
+    /// <summary>
+    /// Mute, from the panel's button or the shortcut: to 0, and from 0 back to the level before
+    /// (10 if there was none), within the Volume limit.
+    /// </summary>
+    /// <param name="shownLevel">The level the panel shows, which may be ahead of the speaker's reply.</param>
+    /// <returns>The level asked for, or null when not connected.</returns>
+    private int? ToggleMute(int? shownLevel)
+    {
+        if (_exiting || _speaker.State != SpeakerState.Connected || _speaker.Volume is not { } volume) return null;
+        var now = Environment.TickCount64;
+        var current = shownLevel ?? (now - _wheelAt < 1500 ? _wheelTarget : volume.Current);
+        int target;
+        if (current > 0)
+        {
+            _levelBeforeMute = current;
+            target = 0;
+        }
+        else
+        {
+            target = Math.Min(_levelBeforeMute ?? 10, Math.Min(volume.Max, _settings.EffectiveVolumeLimit ?? volume.Max));
+            _levelBeforeMute = null;
+        }
+        _wheelTarget = target;
+        _wheelAt = now;
+        _speaker.RequestVolume(target);
+        SetTrayText(target.ToString(), dimmed: false);
+        return target;
+    }
 
     private void CreateTrayIcon()
     {
@@ -263,7 +392,7 @@ public partial class App : Application
             }
         }
         if (change.FromSpeaker && _settings.ShowOnKnobTurn && !_exiting)
-            EnsureWindow().Peek(_settings.HideAfterSeconds);
+            ShowChange();
     }
 
     /// <summary>
@@ -345,14 +474,20 @@ public partial class App : Application
     {
         if (NativeTheme.HighContrastOn())
             return NativeTheme.SystemColor(dimmed ? NativeTheme.ColorGrayText : NativeTheme.ColorWindowText);
-        if (_lightTaskbar is not { } lightTaskbar)
+        var baseColor = LightTaskbar ? System.Drawing.Color.Black : System.Drawing.Color.White;
+        return dimmed ? System.Drawing.Color.FromArgb(150, baseColor) : baseColor;
+    }
+
+    /// <summary>Windows mode (taskbar, Start, notifications) is light.</summary>
+    private bool LightTaskbar
+    {
+        get
         {
+            if (_lightTaskbar is { } light) return light;
             using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
                 @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
-            _lightTaskbar = lightTaskbar = key?.GetValue("SystemUsesLightTheme") is int value && value == 1;
+            return (_lightTaskbar = key?.GetValue("SystemUsesLightTheme") is int value && value == 1).Value;
         }
-        var baseColor = lightTaskbar ? System.Drawing.Color.Black : System.Drawing.Color.White;
-        return dimmed ? System.Drawing.Color.FromArgb(150, baseColor) : baseColor;
     }
 
     private bool AutostartOn => _autostart ??= Autostart.IsEnabled;
@@ -365,9 +500,12 @@ public partial class App : Application
         var connected = state == SpeakerState.Connected && volume is not null;
         var model = DisplayModel;
 
-        // Right after a wheel notch, show where it is going rather than the speaker's lagging reply.
-        var wheeling = Environment.TickCount64 - _wheelAt < 1000;
-        SetTrayText(connected ? (wheeling ? _wheelTarget : volume!.Value.Current).ToString() : "–", dimmed: !connected);
+        SetTrayText(connected ? ShownLevel(volume!.Value).ToString() : "–", dimmed: !connected);
+        if (_osd is { IsVisible: true })
+        {
+            if (connected) _osd.Redraw(ShownLevel(volume!.Value), volume!.Value.Max);
+            else _osd.Hide();
+        }
 
         _tray.ToolTipText = state switch
         {
@@ -403,7 +541,8 @@ public partial class App : Application
         {
             _window = new VolumeWindow(_speaker, _settings, new WindowCommands(
                 ReconnectAsync, PowerOffAsync, SetConnectedAsync, SetAutostart, ExitApp, ApplySettings,
-                () => _wheel?.IconBounds()));
+                () => _wheel?.IconBounds(), shown => ToggleMute(shown)));
+            _window.ShowHotkeysTaken(_hotkeysTaken);
             _window.Hidden += (_, _) =>
             {
                 // Opened from the keyboard: back to the notification area, as Windows asks.
@@ -495,6 +634,8 @@ public partial class App : Application
         if (_exiting) return;
         _exiting = true;
         Log.Write("Exiting.");
+        _hotkeys?.Dispose();
+        _osd?.Dispose();
         _wheel?.Dispose();
         _tray.Dispose();
         try
@@ -547,13 +688,40 @@ public partial class App : Application
             }
         }
         sheet.Save(Path.Combine(directory, "sheet.png"), ImageFormat.Png);
+
+        // The full-screen volume bar, dark and light, at 100 % and 150 %, on a picture-like background.
+        var accent = System.Drawing.Color.FromArgb(76, 194, 255);
+        var dark = new OsdColors(System.Drawing.Color.FromArgb(245, 44, 44, 44), System.Drawing.Color.FromArgb(28, 255, 255, 255),
+            System.Drawing.Color.White, System.Drawing.Color.FromArgb(90, 255, 255, 255), accent);
+        var light = new OsdColors(System.Drawing.Color.FromArgb(245, 249, 249, 249), System.Drawing.Color.FromArgb(20, 0, 0, 0),
+            System.Drawing.Color.FromArgb(228, 0, 0, 0), System.Drawing.Color.FromArgb(70, 0, 0, 0), System.Drawing.Color.FromArgb(0, 95, 184));
+        using var osdSheet = new System.Drawing.Bitmap(800, 300);
+        using var og = System.Drawing.Graphics.FromImage(osdSheet);
+        using var backdrop = new System.Drawing.Drawing2D.LinearGradientBrush(new System.Drawing.Rectangle(0, 0, 800, 300),
+            System.Drawing.Color.FromArgb(20, 60, 90), System.Drawing.Color.FromArgb(200, 120, 60), 0f);
+        og.FillRectangle(backdrop, 0, 0, 800, 300);
+        var y2 = 10;
+        foreach (var scale in (float[])[1f, 1.5f])
+        {
+            var x2 = 10;
+            foreach (var (colors, level) in (ValueTuple<OsdColors, int>[])[(dark, 12), (light, 0)])
+            {
+                using var osd = VolumeOsd.Render(level, 30, (int)(232 * scale), (int)(48 * scale), scale, colors);
+                og.DrawImage(osd, x2, y2);
+                x2 += (int)(232 * scale) + 20;
+            }
+            y2 += (int)(48 * scale) + 20;
+        }
+        osdSheet.Save(Path.Combine(directory, "osd.png"), ImageFormat.Png);
     }
 }
 
 /// <summary>Contrast themes, for the notification-area digits.</summary>
 internal static partial class NativeTheme
 {
+    public const int ColorWindow = 5;
     public const int ColorWindowText = 8;
+    public const int ColorHighlight = 13;
     public const int ColorGrayText = 17;
     private const uint SpiGetHighContrast = 0x0042;
     private const uint HcfHighContrastOn = 0x1;

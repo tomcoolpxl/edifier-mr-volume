@@ -10,4 +10,5 @@ internal sealed record WindowCommands(
     Action<bool> SetAutostart,
     Action Exit,
     Action SettingsChanged,
-    Func<RectInt32?> IconBounds);
+    Func<RectInt32?> IconBounds,
+    Func<int, int?> ToggleMute);

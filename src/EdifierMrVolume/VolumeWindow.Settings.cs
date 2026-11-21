@@ -31,6 +31,10 @@ public sealed partial class VolumeWindow
             StartValue.Text = $"{_settings.StartVolume} of {VolumeMax}";
             SetStartEnabled(_settings.StartVolumeEnabled);
 
+            HotkeysSwitch.IsOn = _settings.HotkeysEnabled;
+            HotkeyKeysBox.SelectedIndex = Math.Max(0, Array.IndexOf(Hotkeys.ModifierChoices, _settings.HotkeyModifiers));
+            SetHotkeysEnabled(_settings.HotkeysEnabled);
+
             SleepOffSwitch.IsOn = _settings.PowerOffOnSleep;
         }
         finally
@@ -154,6 +158,47 @@ public sealed partial class VolumeWindow
         _settings.StartVolume = level;
         SetStartEnabled(_settings.StartVolumeEnabled);
         SaveSettings($"start volume {_settings.StartVolume}");
+    }
+
+    /// <summary>Which shortcuts another app holds, from the app; null when none.</summary>
+    private string? _hotkeysTaken;
+
+    internal void ShowHotkeysTaken(string? taken)
+    {
+        _hotkeysTaken = taken;
+        SetHotkeysEnabled(_settings.HotkeysEnabled);
+    }
+
+    /// <summary>The description names the keys, or the ones another app already uses.</summary>
+    private void SetHotkeysEnabled(bool enabled)
+    {
+        HotkeyKeysCard.IsEnabled = enabled;
+        HotkeyKeysCard.Description = enabled ? null! : "Turn on Keyboard shortcuts to choose.";
+        var keys = _settings.HotkeyModifiers;
+        HotkeysExpander.Description = !enabled
+            ? "Change the volume from any app."
+            : _hotkeysTaken is { } taken
+                ? $"Another app uses {taken}. Choose other keys."
+                : $"{keys} + Up or Down for volume, {keys} + M to mute.";
+    }
+
+    private void HotkeysSwitch_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (!_loadingSettings) _settings.HotkeysEnabled = HotkeysSwitch.IsOn;
+        SetHotkeysEnabled(HotkeysSwitch.IsOn);
+        if (_loadingSettings) return;
+        SaveSettings($"keyboard shortcuts {(_settings.HotkeysEnabled ? $"on, {_settings.HotkeyModifiers}" : "off")}");
+    }
+
+    private void HotkeyKeysBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        var index = HotkeyKeysBox.SelectedIndex;
+        if (_loadingSettings || index < 0 || index >= Hotkeys.ModifierChoices.Length
+            || Hotkeys.ModifierChoices[index] == _settings.HotkeyModifiers) return;
+        _settings.HotkeyModifiers = Hotkeys.ModifierChoices[index];
+        _hotkeysTaken = null; // until the new keys are registered
+        SetHotkeysEnabled(_settings.HotkeysEnabled);
+        SaveSettings($"keyboard shortcuts {_settings.HotkeyModifiers}");
     }
 
     private void SleepOffSwitch_Toggled(object sender, RoutedEventArgs e)

@@ -41,7 +41,6 @@ public sealed partial class VolumeWindow : Window
     private bool _peeking;
     private bool _exiting;
     private bool _firstRunShown;
-    private int? _levelBeforeMute;
     private long _userEditUntil;
     private long _hiddenAt;
     private bool _updatingSwitches;
@@ -60,6 +59,7 @@ public sealed partial class VolumeWindow : Window
         foreach (var preset in EqPresets.All) PresetBox.Items.Add(preset.Name);
         PresetBox.Items.Add(EqPresets.CustomLabel);
         foreach (var choice in RoomPresets.Bass) BassBox.Items.Add(choice.Name);
+        foreach (var choice in Hotkeys.ModifierChoices) HotkeyKeysBox.Items.Add(choice);
         FirstRunBar.Message = FirstRunMessage();
 
         SystemBackdrop = new DesktopAcrylicBackdrop();
@@ -178,14 +178,14 @@ public sealed partial class VolumeWindow : Window
 
     /// <summary>
     /// Shows the panel without taking focus and hides it <paramref name="seconds"/> after the
-    /// last call. Does nothing while it is open by click, or while a full-screen app runs.
+    /// last call. Does nothing while it is open by click. Over a full-screen app the app shows
+    /// its volume bar instead (VolumeOsd).
     /// </summary>
     public void Peek(int seconds)
     {
         if (_exiting || (AppWindow.IsVisible && !_peeking)) return;
         if (!AppWindow.IsVisible)
         {
-            if (NativeMethods.IsFullScreenAppRunning()) return;
             ShowMainView(focus: false);
             Place();
             AppWindow.Show(activateWindow: false);

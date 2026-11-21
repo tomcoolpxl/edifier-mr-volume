@@ -46,6 +46,11 @@ is no service, driver or background task.
 - **TrayIconRenderer** draws the number at the taskbar's pixel size.
 - **TrayWheel** handles the mouse wheel over the number; **OutsideClick** closes the panel on a
   click outside it.
+- **Hotkeys** registers the keyboard shortcuts with Windows (RegisterHotKey) while the setting is
+  on.
+- **VolumeOsd** is the small volume bar shown over full-screen apps instead of the panel: a
+  click-through window that never takes the focus, drawn like the tray number. It is not shown
+  over a game in exclusive full screen.
 - **PowerNotifications** turns the speakers off before sleep, if set, and reconnects after wake.
 - **AppSettings**, **Log** and **Autostart** keep `settings.json` and `log.txt` in
   `%LOCALAPPDATA%\EdifierMrVolume` and the Start with Windows entry in the user's Run key.
@@ -58,6 +63,8 @@ is no service, driver or background task.
 - The connection loop runs on a background task and never touches the UI.
 - Two low-level mouse hooks each run on their own thread, and only while needed: the wheel hook
   while the pointer is over the number, the click hook while the panel is open.
+- The keyboard shortcuts wait on their own thread while they are on. Windows wakes it only when
+  one is pressed.
 
 When the panel is closed, only the connection loop is active.
 
