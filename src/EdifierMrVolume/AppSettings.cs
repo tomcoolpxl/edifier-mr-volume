@@ -72,7 +72,11 @@ internal sealed class AppSettings
         try
         {
             Directory.CreateDirectory(Log.Folder);
-            File.WriteAllText(FilePath, JsonSerializer.Serialize(this, SettingsJson.Default.AppSettings));
+            // Written next to it, then swapped in: an interrupted write (power loss, a killed
+            // process) leaves the old file whole instead of a truncated one that loads as defaults.
+            var temp = FilePath + ".tmp";
+            File.WriteAllText(temp, JsonSerializer.Serialize(this, SettingsJson.Default.AppSettings));
+            File.Move(temp, FilePath, overwrite: true);
         }
         catch (Exception ex)
         {

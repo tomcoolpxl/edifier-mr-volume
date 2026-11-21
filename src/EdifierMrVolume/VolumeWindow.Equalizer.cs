@@ -167,7 +167,7 @@ public sealed partial class VolumeWindow
         if (_updatingEq || _speaker.Equalizer is null || _settings.EqChoice != EqPresets.CustomName) return;
         var steps = _bandRows.Select(r => (int)Math.Round(r.Slider.Value)).ToArray();
         _settings.CustomEq = steps;
-        _settings.Save();
+        ScheduleSave(); // a drag raises this for every step: write the file once it stops
         ApplyEq(EqPresets.CustomName, steps);
     }
 

@@ -214,6 +214,7 @@ public sealed partial class VolumeWindow : Window
         _peekTimer.Stop();
         _focusCheck.Stop();
         _outsideClick.Stop();
+        FlushSave();
         Close();
     }
 

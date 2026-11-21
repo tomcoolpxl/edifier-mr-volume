@@ -46,6 +46,30 @@ public sealed partial class VolumeWindow
         Log.Write($"Setting: {what}");
     }
 
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _saveTimer;
+
+    /// <summary>Saves the settings a moment after the last change, for controls that change many times a second.</summary>
+    private void ScheduleSave()
+    {
+        if (_saveTimer is null)
+        {
+            _saveTimer = DispatcherQueue.CreateTimer();
+            _saveTimer.IsRepeating = false;
+            _saveTimer.Interval = TimeSpan.FromMilliseconds(800);
+            _saveTimer.Tick += (_, _) => _settings.Save();
+        }
+        _saveTimer.Stop();
+        _saveTimer.Start();
+    }
+
+    /// <summary>Writes a change still waiting in <see cref="ScheduleSave"/> now (on exit).</summary>
+    private void FlushSave()
+    {
+        if (_saveTimer is not { IsRunning: true }) return;
+        _saveTimer.Stop();
+        _settings.Save();
+    }
+
     private void ShowOnKnobSwitch_Toggled(object sender, RoutedEventArgs e)
     {
         SetHideAfterEnabled(ShowOnKnobSwitch.IsOn);
