@@ -164,8 +164,7 @@
                     Margin="0,0,0,8"
                     HorizontalAlignment="Stretch"
                     Visibility="Collapsed"
-                    AutomationProperties.Name="Sound mode"
-                    SelectionChanged="ModeBar_SelectionChanged">
+                    AutomationProperties.Name="Sound mode">
                     <controls:SegmentedItem
                         x:Name="ModeMonitor"
                         Content="Monitor"

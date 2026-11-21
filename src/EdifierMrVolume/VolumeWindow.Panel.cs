@@ -132,6 +132,30 @@ public sealed partial class VolumeWindow
     }
 
     private bool _updatingMode;
+    /// <summary>The mode the choices show for the speaker (-1: none known).</summary>
+    private int _shownMode = -1;
+    private bool _modeBarReady;
+
+    /// <summary>
+    /// The toolkit's Segmented (8.2) selects its first item by itself when it loads, which the
+    /// handler would send as a switch to Monitor. Listen only once it has loaded, after putting
+    /// back the speaker's own mode, so opening the panel never changes the speaker.
+    /// </summary>
+    private void ModeBar_Loaded(object sender, RoutedEventArgs e)
+    {
+        if (_modeBarReady) return;
+        _modeBarReady = true;
+        _updatingMode = true;
+        try
+        {
+            ModeBar.SelectedIndex = _shownMode;
+        }
+        finally
+        {
+            _updatingMode = false;
+        }
+        ModeBar.SelectionChanged += ModeBar_SelectionChanged;
+    }
 
     private void UpdateSoundMode(EdifierProtocol.SoundState? sound)
     {
@@ -145,6 +169,7 @@ public sealed partial class VolumeWindow
         ModeBar.IsEnabled = known;
         ModeLedButton.IsEnabled = known;
         var index = known ? sound.Mode : -1;
+        _shownMode = index;
         ShowModeLight(index);
         if (ModeBar.SelectedIndex == index) return;
         _updatingMode = true;
@@ -210,7 +235,9 @@ public sealed partial class VolumeWindow
 
     private void ModeBar_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_updatingMode || ModeBar.SelectedItem is not SegmentedItem { Tag: string tag } || !int.TryParse(tag, out var mode)) return;
+        // Disabled means the speaker reports a mode this app doesn't know: never send one then.
+        if (_updatingMode || !ModeBar.IsEnabled
+            || ModeBar.SelectedItem is not SegmentedItem { Tag: string tag } || !int.TryParse(tag, out var mode)) return;
         if (_speaker.RequestSoundMode(mode))
             Log.Write($"Sound mode -> {EdifierProtocol.SoundModeNames[mode]}");
     }
@@ -269,13 +296,22 @@ public sealed partial class VolumeWindow
         if (MuteButton.IsChecked != muted) MuteButton.IsChecked = muted;
     }
 
+    private int _wheelRemainder;
+
     private void MainView_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
     {
         if (!VolumeSlider.IsEnabled) return;
         var delta = e.GetCurrentPoint(MainView).Properties.MouseWheelDelta;
         if (delta == 0) return;
-        VolumeSlider.Value = Math.Clamp(VolumeSlider.Value + Math.Sign(delta), VolumeSlider.Minimum, VolumeSlider.Maximum);
         e.Handled = true;
+        // One step per full notch (120), as over the number: a precision touchpad sends many
+        // small amounts, which would otherwise each move a whole step.
+        if (Math.Sign(delta) != Math.Sign(_wheelRemainder)) _wheelRemainder = 0;
+        _wheelRemainder += delta;
+        var steps = _wheelRemainder / 120;
+        if (steps == 0) return;
+        _wheelRemainder -= steps * 120;
+        VolumeSlider.Value = Math.Clamp(VolumeSlider.Value + steps, VolumeSlider.Minimum, VolumeSlider.Maximum);
     }
 
     private void Root_KeyDown(object sender, KeyRoutedEventArgs e)

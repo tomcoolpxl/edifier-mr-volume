@@ -73,6 +73,8 @@ public sealed partial class VolumeWindow : Window
             presenter.SetBorderAndTitleBar(hasBorder: true, hasTitleBar: false);
         }
 
+        ModeBar.Loaded += ModeBar_Loaded;
+
         _peekTimer = DispatcherQueue.CreateTimer();
         _peekTimer.IsRepeating = false;
         _peekTimer.Tick += (_, _) =>
