@@ -76,8 +76,8 @@ public sealed partial class VolumeWindow
         StartCard.IsEnabled = enabled;
         StartCard.Description = enabled ? null! : "Turn on Start volume to choose.";
         StartExpander.Description = enabled
-            ? $"Sets {_settings.StartVolume} of {VolumeMax} when the app connects."
-            : "Sets a level when the app connects.";
+            ? $"Sets {_settings.StartVolume} of {VolumeMax} when the app first connects after it starts."
+            : "Sets a level when the app first connects after it starts.";
     }
 
     private void HideAfter_SelectionChanged(object sender, SelectionChangedEventArgs e)

@@ -44,6 +44,8 @@ public partial class App : Application
     private AppSettings _settings = new();
     private readonly UISettings _uiSettings = new();
     private bool _exiting;
+    /// <summary>The start volume runs once per app start, not again on every reconnect.</summary>
+    private bool _startVolumeDone;
 
     public App()
     {
@@ -217,10 +219,13 @@ public partial class App : Application
     private void OnVolumeChanged(VolumeChange change)
     {
         Refresh();
-        if (change.IsFirstReading && _settings.StartVolumeEnabled)
+        // Once per app start: a reconnect after a link blip, standby, sleep or "Connect to
+        // speaker" keeps the volume the knob or the app last set.
+        if (change.IsFirstReading && !_startVolumeDone)
         {
+            _startVolumeDone = true;
             var target = Math.Min(_settings.StartVolume, _settings.EffectiveVolumeLimit ?? int.MaxValue);
-            if (target != change.Level.Current)
+            if (_settings.StartVolumeEnabled && target != change.Level.Current)
             {
                 Log.Write($"Start volume: {change.Level.Current} -> {target}");
                 _speaker.RequestVolume(target);

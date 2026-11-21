@@ -44,7 +44,7 @@ Settings, behind the gear:
 | --- | --- |
 | Auto-open panel | Shows the panel for a moment when you turn the knob. Off by default. |
 | Volume limit | The app never sets the volume higher (24 by default). The knob isn't limited. |
-| Start volume | Sets a volume when the app connects. Off by default. |
+| Start volume | Sets a volume when the app first connects after it starts. Off by default. |
 | Equalizer | Deep bass, Balanced, Deep + balanced, or Your curve (9 bands). Switches to Custom mode. |
 | Room | Where the speakers stand, how much bass, and whether they're on a desk. |
 | Turn off when the PC sleeps | Off by default. |

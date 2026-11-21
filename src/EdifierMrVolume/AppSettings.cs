@@ -24,7 +24,7 @@ internal sealed class AppSettings
     public bool VolumeLimitEnabled { get; set; } = true;
     public int VolumeLimit { get; set; } = 24;
 
-    /// <summary>Set this level whenever the app connects to the speaker.</summary>
+    /// <summary>Set this level the first time the app connects after it starts (not on reconnects).</summary>
     public bool StartVolumeEnabled { get; set; }
     public int StartVolume { get; set; } = 7;
 
