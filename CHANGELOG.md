@@ -3,6 +3,31 @@
 What changed in each release. Written by the release workflow from the commit
 messages and the GitHub issues closed in between; see docs/RELEASING.md.
 
+## v1.3.0 (2026-11-21)
+
+### Features
+
+- **settings:** keyboard shortcuts, and a volume bar over full-screen apps (14ec889)
+- **settings:** the About row shows the simple app icon (699db8d)
+
+### Bug fixes
+
+- **ble:** quick mode and room-tuning changes no longer undo each other, and reconnects are safer (ae4fce2)
+- **flyout:** opening the panel never switches the sound mode, and touchpad scrolling steps once per notch (59301e2)
+- **settings:** the start volume is set once, when the app first connects after it starts (0a28f94)
+- **settings:** settings.json is replaced in one step, and saved once per equalizer drag (b48ae9e)
+- **tray:** the number is drawn at the taskbar display's size after a scaling change, with fewer registry reads (8a70c6c)
+- **install:** installing or uninstalling closes only a copy running from its own folder (b8c7433)
+- **probe:** eq_audition starts each session from the speaker's current curve; probe.py says which flags write (0494125)
+
+### Performance
+
+- **install:** leave out the Windows App SDK parts the app doesn't use (cd868f4)
+
+### Maintenance
+
+- a release never replaces files already published for its tag (11f267b)
+
 ## v1.2.1 (2026-11-18)
 
 ### Bug fixes

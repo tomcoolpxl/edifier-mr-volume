@@ -10,7 +10,7 @@
 
     <!-- The one place the version lives. A release bumps it in a "chore(release): X.Y.Z"
          commit and tags vX.Y.Z; the release workflow checks the two match (docs/RELEASING.md). -->
-    <Version>1.2.1</Version>
+    <Version>1.3.0</Version>
     <!-- Keep the git hash out of the version the app shows. -->
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
