@@ -84,7 +84,9 @@ for ($i = 0; $i -lt $sizes.Count; $i++) {
 foreach ($img in $images) { $w.Write($img) }
 $w.Flush()
 [IO.File]::WriteAllBytes($outIco, $out.ToArray())
-Copy-Item (Join-Path $iconDir 'app-icon.svg') (Join-Path $assets 'app-icon.svg') -Force
+# The About row in the settings shows the simpler design: its bold outline and fewer shapes
+# read better at that size than the detailed one.
+Copy-Item (Join-Path $iconDir 'app-icon-small.svg') (Join-Path $assets 'app-icon.svg') -Force
 Write-Host "Wrote $outIco ($($out.Length) bytes) and Assets\app-icon.svg"
 
 if ($PreviewFile) {
