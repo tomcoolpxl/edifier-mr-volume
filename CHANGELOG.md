@@ -3,6 +3,12 @@
 What changed in each release. Written by the release workflow from the commit
 messages and the GitHub issues closed in between; see docs/RELEASING.md.
 
+## v1.4.0 (2026-11-21)
+
+### Features
+
+- **mcp:** AI assistants can control the speakers over MCP, off by default (0686d43)
+
 ## v1.3.0 (2026-11-21)
 
 ### Features
