@@ -147,15 +147,39 @@ public sealed partial class VolumeWindow
 
     private void PresetBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_updatingEq || PresetBox.SelectedItem is not string label || _speaker.Equalizer is not { } eq) return;
-        var choice = EqPresets.ChoiceFor(label);
+        if (_updatingEq || PresetBox.SelectedItem is not string label) return;
+        SelectEqualizer(EqPresets.ChoiceFor(label));
+    }
+
+    /// <summary>
+    /// A preset, or "Custom" for the user's own curve: from the list, or from an MCP app. A
+    /// preset leaves the user's own curve saved.
+    /// </summary>
+    internal bool SelectEqualizer(string choice)
+    {
+        if (_speaker.Equalizer is not { } eq) return false;
         var steps = EqPresets.Find(choice) is { } preset ? preset.StepsFor(eq)
             : _settings.CustomEq is { } custom && custom.Length == eq.Bands.Count ? custom
             : eq.Steps;
         _settings.EqChoice = choice;
         _settings.Save();
-        Log.Write($"Equalizer -> {label}");
+        Log.Write($"Equalizer -> {EqPresets.Label(choice)}");
         ApplyEq(choice, steps);
+        return true;
+    }
+
+    /// <summary>A new curve for "Your curve", from an MCP app; null, or why not.</summary>
+    internal string? SetCustomEqualizer(int[] steps)
+    {
+        if (_speaker.Equalizer is not { } eq) return "The speaker hasn't reported its equalizer yet.";
+        if (steps.Length != eq.Bands.Count) return $"Give {eq.Bands.Count} steps, one per band.";
+        if (steps.Any(s => Math.Abs(s) > eq.Range)) return $"Each step must be between -{eq.Range} and {eq.Range}.";
+        _settings.EqChoice = EqPresets.CustomName;
+        _settings.CustomEq = steps;
+        _settings.Save();
+        Log.Write($"Equalizer -> {EqPresets.CustomLabel} {string.Join(" ", steps)}");
+        ApplyEq(EqPresets.CustomName, steps);
+        return null;
     }
 
     private void EqSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)

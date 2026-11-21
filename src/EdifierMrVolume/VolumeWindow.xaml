@@ -547,6 +547,37 @@
                             AutomationProperties.Name="Start with Windows"
                             Toggled="AutostartSwitch_Toggled" />
                     </controls:SettingsCard>
+                    <!-- MCP: AI assistants control the speakers through this exe, started with the mcp switch (Program.cs). -->
+                    <controls:SettingsExpander x:Name="McpExpander" Header="AI assistants (MCP)">
+                        <controls:SettingsExpander.HeaderIcon>
+                            <FontIcon Glyph="&#xE99A;" />
+                        </controls:SettingsExpander.HeaderIcon>
+                        <ToggleSwitch
+                            x:Name="McpSwitch"
+                            AutomationProperties.Name="AI assistants (MCP)"
+                            Toggled="McpSwitch_Toggled" />
+                        <controls:SettingsExpander.Items>
+                            <controls:SettingsCard
+                                x:Name="McpCommandCard"
+                                Header="Command for your MCP app"
+                                ContentAlignment="Vertical"
+                                HorizontalContentAlignment="Stretch">
+                                <StackPanel Spacing="8">
+                                    <TextBlock
+                                        x:Name="McpCommandText"
+                                        IsTextSelectionEnabled="True"
+                                        TextWrapping="Wrap"
+                                        FontFamily="Consolas"
+                                        Style="{StaticResource CaptionTextBlockStyle}" />
+                                    <Button
+                                        x:Name="McpCopyButton"
+                                        Content="Copy"
+                                        AutomationProperties.Name="Copy the command"
+                                        Click="McpCopyButton_Click" />
+                                </StackPanel>
+                            </controls:SettingsCard>
+                        </controls:SettingsExpander.Items>
+                    </controls:SettingsExpander>
                     <controls:SettingsExpander x:Name="DiagExpander" Header="Diagnostics">
                         <controls:SettingsExpander.HeaderIcon>
                             <FontIcon Glyph="&#xE9D9;" />

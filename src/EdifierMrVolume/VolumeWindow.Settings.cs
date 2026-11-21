@@ -36,6 +36,10 @@ public sealed partial class VolumeWindow
             SetHotkeysEnabled(_settings.HotkeysEnabled);
 
             SleepOffSwitch.IsOn = _settings.PowerOffOnSleep;
+
+            McpSwitch.IsOn = _settings.McpEnabled;
+            McpCommandText.Text = McpCommand;
+            SetMcpEnabled(_settings.McpEnabled);
         }
         finally
         {
@@ -261,4 +265,34 @@ public sealed partial class VolumeWindow
     }
 
     private void ExitButton_Click(object sender, RoutedEventArgs e) => _commands.Exit();
+
+    /// <summary>What an MCP app runs: this exe with --mcp.</summary>
+    private static string McpCommand => $"\"{Environment.ProcessPath}\" --mcp";
+
+    private void SetMcpEnabled(bool enabled)
+    {
+        McpCommandCard.IsEnabled = enabled;
+        McpCommandCard.Description = enabled
+            ? "Add it as a local (stdio) MCP server in Claude, VS Code or another MCP app."
+            : "Turn on AI assistants (MCP) to use it.";
+        McpExpander.Description = enabled
+            ? "MCP apps can read and change the speaker settings, and turn them off."
+            : "Lets Claude, VS Code and other MCP apps control the speakers.";
+    }
+
+    private void McpSwitch_Toggled(object sender, RoutedEventArgs e)
+    {
+        SetMcpEnabled(McpSwitch.IsOn);
+        if (_loadingSettings) return;
+        _settings.McpEnabled = McpSwitch.IsOn;
+        SaveSettings($"AI assistants (MCP) = {_settings.McpEnabled}");
+    }
+
+    private void McpCopyButton_Click(object sender, RoutedEventArgs e)
+    {
+        var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
+        package.SetText(McpCommand);
+        Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+        McpCopyButton.Content = "Copied";
+    }
 }

@@ -50,6 +50,7 @@ Settings, behind the gear:
 | Room | Where the speakers stand, how much bass, and whether they're on a desk. |
 | Turn off when the PC sleeps | Off by default. |
 | Power saving | The speakers' own standby after 15 minutes without sound. |
+| AI assistants (MCP) | Lets Claude, VS Code and other MCP apps control the speakers. Off by default. See below. |
 | Diagnostics | Connection details, Reconnect and Open log. |
 
 <img src="docs/images/settings.png" alt="Settings" width="320">
@@ -74,6 +75,21 @@ Settings and the log are in `%LOCALAPPDATA%\EdifierMrVolume`. To remove a portab
 off Start with Windows, choose Exit, and delete its folder and that one.
 
 `EdifierMrVolume.exe --show` opens the panel; `--exit` closes the running app.
+
+## AI assistants (MCP)
+
+With **AI assistants (MCP)** on (Settings, Connection), an AI app that speaks the
+[Model Context Protocol](https://modelcontextprotocol.io) can read and change the speaker
+settings: "set my speakers to 12", "switch to Music mode". Add the app as a local (stdio) MCP
+server. Settings shows the exact command, with a Copy button.
+
+- **Claude Code:** `claude mcp add edifier-mr --scope user -- "<folder>\EdifierMrVolume.exe" --mcp`
+- **Claude Desktop, VS Code and others:** command `<folder>\EdifierMrVolume.exe`, argument `--mcp`.
+
+Tools: `get_status`, `set_volume`, `change_volume`, `set_mute`, `set_sound_mode`,
+`set_equalizer_preset`, `set_custom_equalizer`, `set_room`, `set_power_saving` and `power_off`.
+The Volume limit applies. The app must be running: `--mcp` only passes messages to it, over a
+named pipe that only your Windows account can open.
 
 ## Problems
 

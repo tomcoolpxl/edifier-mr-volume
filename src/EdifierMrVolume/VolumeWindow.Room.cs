@@ -66,20 +66,37 @@ public sealed partial class VolumeWindow
     /// <summary>One of the three room controls moved: send all four values together.</summary>
     private void ApplyRoom()
     {
-        if (_updatingRoom || BassBox is null || DeskSwitch is null || _speaker.SoundMode is not { } sound
-            || !EdifierProtocol.TryDecodeRoomTuning(sound, out var current)) return;
-        var shown = _roomTarget ?? current;
+        if (_updatingRoom || BassBox is null || DeskSwitch is null) return;
         var index = BassBox.SelectedIndex;
         var bass = index >= 0 && index < RoomPresets.Bass.Count ? RoomPresets.Bass[index] : null;
+        SetRoom((int)Math.Round(WallSlider.Value), bass, DeskSwitch.IsOn);
+    }
+
+    /// <summary>Room tuning from an MCP app: null values stay as they are. Null, or why not.</summary>
+    internal string? SetRoom(int? space, string? bassName, bool? desk)
+    {
+        var bass = bassName is null ? null : RoomPresets.Bass.FirstOrDefault(b => b.Name == bassName);
+        if (bassName is not null && bass is null) return $"Unknown bass. Use one of: {string.Join(", ", RoomPresets.Bass.Select(b => b.Name))}.";
+        if (space is < 0 or > 4) return "position goes from 0 (middle of the room) to 4 (in a corner).";
+        return SetRoom(space, bass, desk) ? null : "The speaker hasn't reported a room setting this app knows.";
+    }
+
+    /// <summary>Sends the room tuning with these values changed; false if the speaker's isn't known.</summary>
+    private bool SetRoom(int? space, RoomPresets.BassChoice? bass, bool? desk)
+    {
+        if (_speaker.SoundMode is not { } sound || !EdifierProtocol.TryDecodeRoomTuning(sound, out var current)) return false;
+        var shown = _roomTarget ?? current;
         var wanted = new EdifierProtocol.RoomTuning(
             bass?.LowCutHz ?? shown.LowCutHz,
             bass?.Slope ?? shown.Slope,
-            (int)Math.Round(WallSlider.Value),
-            DeskSwitch.IsOn);
-        if (wanted == shown || !_speaker.RequestRoomTuning(wanted)) return;
+            space ?? shown.Space,
+            desk ?? shown.Desktop);
+        if (wanted == shown) return true;
+        if (!_speaker.RequestRoomTuning(wanted)) return false;
         _roomTarget = wanted;
         _roomTargetUntil = Environment.TickCount64 + 5_000;
         ShowRoom(wanted);
         Log.Write($"Room -> {bass?.Name ?? "bass as set"}, space {wanted.Space}, desk {(wanted.Desktop ? "on" : "off")}");
+        return true;
     }
 }

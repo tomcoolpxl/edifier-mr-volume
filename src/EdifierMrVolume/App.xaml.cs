@@ -44,6 +44,7 @@ public partial class App : Application
     private int? _levelBeforeMute;
     private Hotkeys? _hotkeys;
     private VolumeOsd? _osd;
+    private McpBridge? _mcp;
     /// <summary>Which shortcuts another app holds, as the settings show it; null when none.</summary>
     private string? _hotkeysTaken;
     private VolumeWindow? _window;
@@ -142,6 +143,7 @@ public partial class App : Application
 
         _speaker.Start();
         ApplyHotkeys();
+        ApplyMcp();
         Refresh();
 
         if (!_settings.FirstRunDone)
@@ -161,6 +163,52 @@ public partial class App : Application
     {
         _speaker.VolumeLimit = _settings.EffectiveVolumeLimit;
         ApplyHotkeys();
+        ApplyMcp();
+    }
+
+    /// <summary>Waits for MCP apps while the setting is on.</summary>
+    private void ApplyMcp()
+    {
+        if (!_settings.McpEnabled)
+        {
+            if (_mcp is not null) Log.Write("AI assistants (MCP): off.");
+            _mcp?.Dispose();
+            _mcp = null;
+            return;
+        }
+        if (_mcp is not null) return;
+        var actions = new McpActions(
+            SetVolume: level => SetVolumeFromApp(level, relative: false),
+            ChangeVolume: steps => SetVolumeFromApp(steps, relative: true),
+            SetMuted: muted => _speaker.Volume is { } v && (ShownLevel(v) == 0) == muted ? ShownLevel(v) : ToggleMute(null),
+            SelectEqualizer: choice => EnsureWindow().SelectEqualizer(choice),
+            SetCustomEqualizer: steps => EnsureWindow().SetCustomEqualizer(steps),
+            SetRoom: (position, bass, desk) => EnsureWindow().SetRoom(position, bass, desk),
+            PowerOff: async () =>
+            {
+                if (_speaker.State != SpeakerState.Connected) return false;
+                await PowerOffAsync();
+                return _speaker.SwitchedOff;
+            });
+        _mcp = new McpBridge(new McpTools(_speaker, _settings, _ui, actions, AppVersion));
+        _mcp.Start();
+    }
+
+    /// <summary>
+    /// A level, or steps up or down, from an MCP app: within the speaker's range and the Volume
+    /// limit (up never goes above it; down from above it, where the knob put it, is allowed).
+    /// </summary>
+    private int? SetVolumeFromApp(int value, bool relative)
+    {
+        if (_exiting || _speaker.State != SpeakerState.Connected || _speaker.Volume is not { } volume) return null;
+        var from = ShownLevel(volume);
+        var target = VolumeRules.Clamp(relative ? from + value : value, from, volume.Max, _settings.EffectiveVolumeLimit);
+        Log.Write($"Volume -> {target} (MCP)");
+        _wheelTarget = target;
+        _wheelAt = Environment.TickCount64;
+        _speaker.RequestVolume(target);
+        SetTrayText(target.ToString(), dimmed: false);
+        return target;
     }
 
     /// <summary>Registers the keyboard shortcuts while the setting is on (again only when the keys change).</summary>
@@ -635,6 +683,7 @@ public partial class App : Application
         _exiting = true;
         Log.Write("Exiting.");
         _hotkeys?.Dispose();
+        _mcp?.Dispose();
         _osd?.Dispose();
         _wheel?.Dispose();
         _tray.Dispose();

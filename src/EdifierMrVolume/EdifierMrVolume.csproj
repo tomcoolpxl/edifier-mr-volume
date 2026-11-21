@@ -27,6 +27,8 @@
     <PublishAot>true</PublishAot>
     <!-- Needed by [LibraryImport] for the few Win32 calls (cursor position, monitor DPI). -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Program.cs has its own Main: started for an MCP app, it relays without starting WinUI. -->
+    <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
@@ -47,6 +49,9 @@
     <PackageReference Include="CommunityToolkit.WinUI.Controls.SettingsControls" Version="8.2.251219" />
     <!-- The sound-mode switch: the Toolkit's control for "a view or setting" with 2-5 choices. -->
     <PackageReference Include="CommunityToolkit.WinUI.Controls.Segmented" Version="8.2.251219" />
+    <!-- The official C# SDK for the Model Context Protocol (AI assistants), minimal variant
+         without hosting; marked AOT-compatible. Used only while the setting is on. -->
+    <PackageReference Include="ModelContextProtocol.Core" Version="2.4.0" />
   </ItemGroup>
 
   <ItemGroup>

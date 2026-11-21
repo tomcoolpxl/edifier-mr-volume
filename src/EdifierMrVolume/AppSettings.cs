@@ -32,6 +32,9 @@ internal sealed class AppSettings
     public bool HotkeysEnabled { get; set; }
     public string HotkeyModifiers { get; set; } = Hotkeys.ModifierChoices[0];
 
+    /// <summary>Let MCP apps (Claude, VS Code) control the speakers through "--mcp". Off by default.</summary>
+    public bool McpEnabled { get; set; }
+
     /// <summary>The one-time hint about Windows hiding new notification-area icons was shown.</summary>
     public bool FirstRunDone { get; set; }
 

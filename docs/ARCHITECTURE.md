@@ -48,6 +48,12 @@ is no service, driver or background task.
   click outside it.
 - **Hotkeys** registers the keyboard shortcuts with Windows (RegisterHotKey) while the setting is
   on.
+- **Program** is the entry point. With `--mcp` it runs **McpRelay** instead of WinUI: a small
+  helper that an MCP app starts, which passes stdin and stdout to the running app over a named
+  pipe. **McpBridge** in the app listens on that pipe while the setting is on (only this Windows
+  user, no network logons) and runs one MCP session per helper with the official C# SDK.
+  **McpTools** declares the tools by hand (no reflection, for Native AOT) and makes each change
+  through the same code as the control it stands for.
 - **VolumeOsd** is the small volume bar shown over full-screen apps instead of the panel: a
   click-through window that never takes the focus, drawn like the tray number. It is not shown
   over a game in exclusive full screen.
@@ -65,6 +71,8 @@ is no service, driver or background task.
   while the pointer is over the number, the click hook while the panel is open.
 - The keyboard shortcuts wait on their own thread while they are on. Windows wakes it only when
   one is pressed.
+- While AI assistants (MCP) is on, the pipe waits for a connection without a thread of its own.
+  MCP sessions run on the thread pool and make their changes on the UI thread.
 
 When the panel is closed, only the connection loop is active.
 
