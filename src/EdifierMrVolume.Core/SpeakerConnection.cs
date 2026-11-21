@@ -68,7 +68,7 @@ public sealed class SpeakerConnection : IAsyncDisposable
     private readonly SemaphoreSlim _kick = new(0);
     private readonly SemaphoreSlim _wake = new(0);
     private readonly HashSet<ulong> _ignored = [];
-    /// <summary>Commands waiting to be written (sound mode switches); sent before the next poll.</summary>
+    /// <summary>Commands waiting to be written (power saving); sent before the next poll.</summary>
     private readonly System.Collections.Concurrent.ConcurrentQueue<byte[]> _outbox = new();
     private EdifierProtocol.SoundState? _sound;
     private EdifierProtocol.EqCurve? _eq;
@@ -77,6 +77,10 @@ public sealed class SpeakerConnection : IAsyncDisposable
     private int[]? _pendingEq;
     /// <summary>Room tuning to apply; only the latest request counts.</summary>
     private EdifierProtocol.RoomTuning? _pendingTuning;
+    /// <summary>Sound mode to switch to, or -1; only the latest request counts.</summary>
+    private int _pendingMode = -1;
+    /// <summary>The last loop started, still awaited by the next Start if it hasn't finished.</summary>
+    private Task? _lastLoop;
     /// <summary>Set while a write waits for the speaker's reply to that command.</summary>
     private TaskCompletionSource? _replyWaiter;
     private byte _replyCommand;
@@ -129,13 +133,15 @@ public sealed class SpeakerConnection : IAsyncDisposable
 
     /// <summary>
     /// Switches Monitor / Music / Custom. Only possible once the speaker has reported its tuning,
-    /// because the switch must echo those bytes unchanged.
+    /// because the switch must echo those bytes unchanged. Coalesced: the latest request wins,
+    /// and the packet is built when it is sent (see <see cref="SoundWrites"/>), so quick clicks
+    /// end on the last one and a room-tuning change just before isn't undone.
     /// </summary>
     public bool RequestSoundMode(int mode)
     {
-        var current = SoundMode;
-        if (current is null || current.Mode == mode || State != SpeakerState.Connected) return false;
-        _outbox.Enqueue(EdifierProtocol.SetSoundMode(current, mode));
+        if (SoundMode is null || mode < 0 || mode >= EdifierProtocol.SoundModeNames.Count
+            || State != SpeakerState.Connected) return false;
+        Interlocked.Exchange(ref _pendingMode, mode);
         Kick();
         return true;
     }
@@ -239,7 +245,18 @@ public sealed class SpeakerConnection : IAsyncDisposable
             if (_cts is not null) return;
             _cts = new CancellationTokenSource();
             var token = _cts.Token;
-            _loop = Task.Run(() => RunAsync(token));
+            var previous = _lastLoop;
+            _loop = _lastLoop = Task.Run(async () =>
+            {
+                // A loop that is still shutting down (Connect switched off and on quickly) must
+                // finish first: both use the same link fields.
+                if (previous is not null)
+                {
+                    try { await previous.ConfigureAwait(false); }
+                    catch { /* it logged its own failure */ }
+                }
+                await RunAsync(token).ConfigureAwait(false);
+            });
         }
     }
 
@@ -267,7 +284,10 @@ public sealed class SpeakerConnection : IAsyncDisposable
             _log($"Stop: {ex.Message}");
         }
         cts.Dispose();
-        SetState(SpeakerState.Stopped, null);
+        // Started again while this one wound down: the new loop owns the state now.
+        bool stillStopped;
+        lock (_gate) stillStopped = _cts is null;
+        if (stillStopped) SetState(SpeakerState.Stopped, null);
     }
 
     /// <summary>
@@ -540,23 +560,35 @@ public sealed class SpeakerConnection : IAsyncDisposable
             // One command at a time, each after the speaker has answered the previous one.
             while (_outbox.TryDequeue(out var queued))
             {
-                if (await WriteAndWaitAsync(queued, ct).ConfigureAwait(false)) NoteSoundModeWritten(queued);
+                await WriteAndWaitAsync(queued, ct).ConfigureAwait(false);
                 nextModePoll = Environment.TickCount64 + 400; // read the result back soon
             }
 
-            if (Interlocked.Exchange(ref _pendingTuning, null) is { } tuning
-                && SoundMode is { } sound
-                && EdifierProtocol.TryDecodeRoomTuning(sound, out var tuningNow) && tuningNow != tuning)
+            // Room tuning, then the sound mode: each packet built from the speaker's latest bytes
+            // as it is sent, so the two can't undo each other (see SoundWrites).
+            var pendingMode = Volatile.Read(ref _pendingMode);
+            var pendingTuning = Volatile.Read(ref _pendingTuning);
+            if (pendingMode >= 0 || pendingTuning is not null)
             {
-                var packet = EdifierProtocol.SetRoomTuning(sound, tuning);
+                var packet = SoundWrites.Next(SoundMode, pendingMode >= 0 ? pendingMode : null, pendingTuning, out var forTuning);
+                if (packet is null)
+                {
+                    // Nothing left to change (or nothing that can be): both requests are done.
+                    Interlocked.CompareExchange(ref _pendingMode, -1, pendingMode);
+                    Interlocked.CompareExchange(ref _pendingTuning, null, pendingTuning);
+                    continue;
+                }
+                if (forTuning) Interlocked.CompareExchange(ref _pendingTuning, null, pendingTuning);
+                else Interlocked.CompareExchange(ref _pendingMode, -1, pendingMode);
                 if (await WriteAndWaitAsync(packet, ct).ConfigureAwait(false))
                 {
                     NoteSoundModeWritten(packet);
-                    _log($"Room tuning set: {tuning.LowCutHz} Hz, {tuning.SlopeDbPerOctave} dB/oct, space {(tuning.Space == 0 ? "0" : $"−{tuning.Space}")} dB, desktop {(tuning.Desktop ? "on" : "off")}.");
+                    if (forTuning && pendingTuning is { } tuning)
+                        _log($"Room tuning set: {tuning.LowCutHz} Hz, {tuning.SlopeDbPerOctave} dB/oct, space {(tuning.Space == 0 ? "0" : $"-{tuning.Space}")} dB, desktop {(tuning.Desktop ? "on" : "off")}.");
                 }
                 else
                 {
-                    _log("Room tuning: no ack.");
+                    _log(forTuning ? "Room tuning: no ack." : "Sound mode: no ack.");
                 }
                 nextModePoll = Environment.TickCount64 + 400; // read the result back soon
                 continue;
@@ -667,9 +699,25 @@ public sealed class SpeakerConnection : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// A write that never completes would hold the loop, and the silence check behind it, so a
+    /// dead link could stay "Connected": give up after this long and reconnect.
+    /// </summary>
+    private static readonly TimeSpan WriteTimeout = TimeSpan.FromSeconds(5);
+
     private async Task WriteAsync(byte[] packet, CancellationToken ct)
     {
-        var status = await _write!.WriteValueAsync(packet.AsBuffer(), _writeOption).AsTask(ct).ConfigureAwait(false);
+        GattCommunicationStatus status;
+        try
+        {
+            status = await _write!.WriteValueAsync(packet.AsBuffer(), _writeOption).AsTask(ct)
+                .WaitAsync(WriteTimeout, ct).ConfigureAwait(false);
+        }
+        catch (TimeoutException)
+        {
+            // Not a TimeoutException: WriteAndWaitAsync reads that as "no reply" and carries on.
+            throw new IOException($"Write to speaker failed (no result in {WriteTimeout.TotalSeconds:0} s).");
+        }
         if (status != GattCommunicationStatus.Success)
             throw new IOException($"Write to speaker failed ({status}).");
     }
@@ -767,6 +815,7 @@ public sealed class SpeakerConnection : IAsyncDisposable
         while (_outbox.TryDequeue(out _)) { } // a mode switch for a link that's gone is stale
         Interlocked.Exchange(ref _pendingEq, null);
         Interlocked.Exchange(ref _pendingTuning, null);
+        Interlocked.Exchange(ref _pendingMode, -1);
         lock (_gate)
         {
             _volume = null;

@@ -140,6 +140,50 @@ public class EdifierProtocolTests
     }
 
     /// <summary>
+    /// A room-tuning change and a mode switch asked for together: the tuning goes first, and
+    /// the mode switch built after the speaker took it carries the new tuning, not the old one.
+    /// </summary>
+    [Fact]
+    public void A_mode_switch_after_a_tuning_change_keeps_the_new_tuning()
+    {
+        var monitor = new EdifierProtocol.SoundState(0, Bytes("02 00 1E 03 00 01"));
+        var wall = new EdifierProtocol.RoomTuning(30, 3, 2, true);
+
+        var first = SoundWrites.Next(monitor, mode: 1, tuning: wall, out var forTuning);
+        Assert.True(forTuning);
+        Assert.Equal(EdifierProtocol.SetRoomTuning(monitor, wall), first);
+
+        // The speaker acked it: its state is what was written.
+        var afterTuning = new EdifierProtocol.SoundState(first![5], first[6..12]);
+        var second = SoundWrites.Next(afterTuning, mode: 1, tuning: wall, out forTuning);
+        Assert.False(forTuning);
+        Assert.Equal(Bytes("AA 0C C4 00 07 01 02 00 1E 03 02 01 A8"), second);
+
+        var afterMode = new EdifierProtocol.SoundState(second![5], second[6..12]);
+        Assert.Null(SoundWrites.Next(afterMode, mode: 1, tuning: wall, out _));
+    }
+
+    [Fact]
+    public void Nothing_is_written_when_nothing_changes()
+    {
+        var music = new EdifierProtocol.SoundState(1, Bytes("02 00 1E 03 00 01"));
+        Assert.Null(SoundWrites.Next(music, mode: 1, tuning: null, out _));
+        Assert.Null(SoundWrites.Next(music, mode: null, tuning: new EdifierProtocol.RoomTuning(30, 3, 0, true), out _));
+        Assert.Null(SoundWrites.Next(null, mode: 2, tuning: null, out _));
+        Assert.Null(SoundWrites.Next(music, mode: 7, tuning: null, out _));
+    }
+
+    /// <summary>A room setting this app doesn't know is never written, but the mode still switches with it echoed.</summary>
+    [Fact]
+    public void An_unknown_tuning_still_lets_the_mode_switch()
+    {
+        var unknown = new EdifierProtocol.SoundState(0, Bytes("02 01 1E 03 00 01"));
+        var packet = SoundWrites.Next(unknown, mode: 2, tuning: new EdifierProtocol.RoomTuning(50, 3, 0, true), out var forTuning);
+        Assert.False(forTuning);
+        Assert.Equal(EdifierProtocol.SetSoundMode(unknown, 2), packet);
+    }
+
+    /// <summary>
     /// What the speaker held after the malformed write (low cut 3, slope 0, space 1, desktop 0xA5),
     /// and the DSP-reset byte, are never taken as a base to write from.
     /// </summary>
