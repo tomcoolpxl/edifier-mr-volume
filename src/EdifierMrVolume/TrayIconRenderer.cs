@@ -15,7 +15,7 @@ internal static partial class TrayIconRenderer
 
     public static Icon Render(string text, Color color, string fontFamily = DefaultFont, int? sizeOverride = null)
     {
-        using var bitmap = RenderBitmap(text, color, fontFamily, sizeOverride ?? TrayIconSize());
+        using var bitmap = RenderBitmap(text, color, fontFamily, sizeOverride ?? TrayIconSize(null));
         var handle = bitmap.GetHicon();
         try
         {
@@ -62,11 +62,22 @@ internal static partial class TrayIconRenderer
         return bitmap;
     }
 
-    /// <summary>Small-icon size for the system DPI (16 px at 100 %, 24 px at 150 %, ...).</summary>
-    public static int TrayIconSize()
+    /// <summary>
+    /// Small-icon size (16 px at 100 %, 24 px at 150 %, ...) for the display the icon is on, at
+    /// its current scaling. The system DPI is fixed when the app starts, so it would miss a
+    /// scaling change and a taskbar on another display; it is only the fallback when Windows
+    /// can't say where the icon is.
+    /// </summary>
+    public static int TrayIconSize(Windows.Graphics.RectInt32? iconBounds)
     {
         const int SmCxSmIcon = 49;
-        var size = GetSystemMetricsForDpi(SmCxSmIcon, GetDpiForSystem());
+        var dpi = GetDpiForSystem();
+        if (iconBounds is { Width: > 0, Height: > 0 } r)
+        {
+            var scale = NativeMethods.ScaleForPoint(new NativeMethods.POINT { X = r.X + r.Width / 2, Y = r.Y + r.Height / 2 });
+            dpi = (uint)Math.Round(96 * scale);
+        }
+        var size = GetSystemMetricsForDpi(SmCxSmIcon, dpi);
         return size > 0 ? size : 16;
     }
 

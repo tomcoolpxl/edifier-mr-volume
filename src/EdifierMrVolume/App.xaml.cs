@@ -46,6 +46,12 @@ public partial class App : Application
     private bool _exiting;
     /// <summary>The start volume runs once per app start, not again on every reconnect.</summary>
     private bool _startVolumeDone;
+    /// <summary>Read from the registry only when it may have changed, not on every update.</summary>
+    private bool? _autostart;
+    private bool? _lightTaskbar;
+    /// <summary>The tray icon's pixel size for the taskbar's display, and the size it was drawn at.</summary>
+    private int _iconSize;
+    private int _drawnIconSize;
 
     public App()
     {
@@ -105,7 +111,24 @@ public partial class App : Application
         CreateTrayIcon();
         // Taskbar switched between light and dark, or a contrast theme came or went: redraw the
         // digits in the matching colour.
-        _uiSettings.ColorValuesChanged += (_, _) => _ui.TryEnqueue(Refresh);
+        _uiSettings.ColorValuesChanged += (_, _) => _ui.TryEnqueue(() =>
+        {
+            _lightTaskbar = null;
+            Refresh();
+        });
+        // Display scaling changed or a monitor came or went: redraw the digits at the taskbar's
+        // new pixel size.
+        Microsoft.Win32.SystemEvents.DisplaySettingsChanged += (_, _) => _ui.TryEnqueue(() =>
+        {
+            UpdateIconSize();
+            Refresh();
+        });
+        Microsoft.Win32.SystemEvents.UserPreferenceChanged += (_, _) => _ui.TryEnqueue(() =>
+        {
+            _lightTaskbar = null;
+            UpdateIconSize();
+            Refresh();
+        });
         WatchForWakeUp();
 
         _speaker.Start();
@@ -136,6 +159,12 @@ public partial class App : Application
         _powerItem = new MenuFlyoutItem { Text = "Turn off speakers", IsEnabled = false, Command = new RelayCommand(() => _ = PowerOffAsync()) };
 
         var menu = new MenuFlyout();
+        // Start with Windows may have changed outside the app (installer, Scoop): read it again.
+        menu.Opening += (_, _) =>
+        {
+            _autostart = null;
+            Refresh();
+        };
         menu.Items.Add(new MenuFlyoutItem { Text = "Open", Command = new RelayCommand(ShowWindow) });
         menu.Items.Add(_powerItem);
         menu.Items.Add(new MenuFlyoutSeparator());
@@ -144,7 +173,8 @@ public partial class App : Application
         menu.Items.Add(new MenuFlyoutSeparator());
         menu.Items.Add(new MenuFlyoutItem { Text = "Exit", Command = new RelayCommand(ExitApp) });
 
-        _trayIconImage = TrayIconRenderer.Render("–", IconColor(dimmed: true));
+        _iconSize = _drawnIconSize = TrayIconRenderer.TrayIconSize(null);
+        _trayIconImage = TrayIconRenderer.Render("–", IconColor(dimmed: true), sizeOverride: _iconSize);
         _iconText = "–";
         _iconColor = IconColor(dimmed: true);
         _tray = new TaskbarIcon
@@ -161,6 +191,7 @@ public partial class App : Application
 
         // Scroll wheel over the number: one step per notch.
         _wheel = new TrayWheel(_tray.TrayIcon.Id, notch => _ui.TryEnqueue(() => OnWheel(notch)));
+        UpdateIconSize();
         _tray.TrayIcon.MessageWindow.MouseEventReceived += (_, e) =>
         {
             if (e.MouseEvent == H.NotifyIcon.Core.MouseEvent.MouseMove) _wheel.PointerOverIcon();
@@ -289,33 +320,42 @@ public partial class App : Application
         }
     }
 
-    /// <summary>Redraws the tray icon if the text or the taskbar theme changed.</summary>
+    /// <summary>The icon's pixel size for the display the taskbar is on, at its current scaling.</summary>
+    private void UpdateIconSize() => _iconSize = TrayIconRenderer.TrayIconSize(_wheel?.IconBounds());
+
+    /// <summary>Redraws the tray icon if the text, the taskbar theme or the icon's pixel size changed.</summary>
     private void SetTrayText(string text, bool dimmed)
     {
         var color = IconColor(dimmed);
-        if (text == _iconText && color == _iconColor) return;
+        if (text == _iconText && color == _iconColor && _iconSize == _drawnIconSize) return;
         var previous = _trayIconImage;
-        _trayIconImage = TrayIconRenderer.Render(text, color);
+        _trayIconImage = TrayIconRenderer.Render(text, color, sizeOverride: _iconSize);
         _tray.Icon = _trayIconImage;
         previous?.Dispose();
         _iconText = text;
         _iconColor = color;
+        _drawnIconSize = _iconSize;
     }
 
     /// <summary>
     /// White digits on a dark taskbar, black on a light one; greyed out while not connected. In a
     /// contrast theme, the theme's own text colours.
     /// </summary>
-    private static System.Drawing.Color IconColor(bool dimmed)
+    private System.Drawing.Color IconColor(bool dimmed)
     {
         if (NativeTheme.HighContrastOn())
             return NativeTheme.SystemColor(dimmed ? NativeTheme.ColorGrayText : NativeTheme.ColorWindowText);
-        using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
-            @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
-        var lightTaskbar = key?.GetValue("SystemUsesLightTheme") is int value && value == 1;
+        if (_lightTaskbar is not { } lightTaskbar)
+        {
+            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+                @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
+            _lightTaskbar = lightTaskbar = key?.GetValue("SystemUsesLightTheme") is int value && value == 1;
+        }
         var baseColor = lightTaskbar ? System.Drawing.Color.Black : System.Drawing.Color.White;
         return dimmed ? System.Drawing.Color.FromArgb(150, baseColor) : baseColor;
     }
+
+    private bool AutostartOn => _autostart ??= Autostart.IsEnabled;
 
     private void Refresh()
     {
@@ -341,11 +381,11 @@ public partial class App : Application
         };
         _connectItem.IsChecked = _speaker.IsRunning;
         _powerItem.IsEnabled = state == SpeakerState.Connected && !_speaker.SwitchedOff;
-        _autostartItem.IsChecked = Autostart.IsEnabled;
+        _autostartItem.IsChecked = AutostartOn;
         if (_window is not null)
         {
             _window.Update(state, volume, model, _speaker.Detail, _speaker.SoundMode, _speaker.Equalizer,
-                _speaker.IsRunning, Autostart.IsEnabled);
+                _speaker.IsRunning, AutostartOn);
             _window.UpdateDiagnostics(_speaker.GetDiagnostics(), model, AppVersion);
         }
     }
@@ -398,6 +438,7 @@ public partial class App : Application
 
     private void ToggleWindow(bool keyboard) => Guarded("open the panel", () =>
     {
+        _autostart = null; // the panel shows it: read it fresh
         var window = EnsureWindow();
         _openedByKeyboard = keyboard;
         window.Toggle(keyboard);
@@ -445,6 +486,7 @@ public partial class App : Application
     private void SetAutostart(bool on)
     {
         if (on != Autostart.IsEnabled) Autostart.Set(on);
+        _autostart = null;
         Refresh();
     }
 
