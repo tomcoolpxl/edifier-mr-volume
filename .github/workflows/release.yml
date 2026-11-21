@@ -116,6 +116,24 @@ jobs:
           "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           "prerelease=$prerelease" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
+      # Published files never change: package managers such as Scoop pin their checksums, and a
+      # rebuild never gives byte-identical files. A tag pushed again for an existing release (a
+      # history rewrite, say) stops here; a fix goes out as a new version.
+      - name: Refuse to replace a published release
+        shell: pwsh
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          $count = gh release view $env:TAG --json assets --jq '.assets | length' 2>$null
+          if ($LASTEXITCODE -eq 0 -and [int]$count -gt 0) {
+            Write-Error "Release $env:TAG already has $count published files; they are never replaced. Release a new version instead."
+            exit 1
+          }
+          $global:LASTEXITCODE = 0
+          Write-Host "No published files for $env:TAG yet."
+
       - name: Checkout the tag
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
