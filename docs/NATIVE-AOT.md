@@ -45,6 +45,21 @@ connect to the speaker, then left idle for 60 seconds.
 - CPU at this level is mostly noise: 31 ms in a minute is about 0.05 % of one core, and the C++
   build's 47 ms isn't really worse.
 
+## Smaller download
+
+The Windows App SDK package brings all its components, and the app uses only WinUI. After 1.2.1
+the csproj leaves out machine learning (ONNX Runtime, DirectML), AI, Search, Widgets and the
+framework-runtime package with `ExcludeAssets="all"`, as a Windows App SDK maintainer advised in
+[microsoft/WindowsAppSDK#5969](https://github.com/microsoft/WindowsAppSDK/issues/5969):
+
+| | 1.2.1 | After |
+| --- | ---: | ---: |
+| Installed | 128.5 MB | 70.9 MB |
+| Zip | 51 MB | 28 MB |
+| Installer | 35 MB | 19 MB |
+
+Idle CPU stayed the same: 0 to 31 ms in a minute, 23 to 25 threads, 78 MB working set.
+
 ## How it is kept
 
 - `<PublishAot>true</PublishAot>` is set in `src/EdifierMrVolume/EdifierMrVolume.csproj`, so

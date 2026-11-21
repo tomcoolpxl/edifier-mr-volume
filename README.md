@@ -96,8 +96,9 @@ so no .NET runtime ships with it. Measured against a normal .NET build on the sa
 | Memory (working set) | 117 MB | 76 MB |
 | Install size | 237 MB | 173 MB |
 
-A partial C++ version was only a little smaller. Details:
-[docs/NATIVE-AOT.md](docs/NATIVE-AOT.md).
+A partial C++ version was only a little smaller. Leaving out the Windows App SDK parts the app
+doesn't use (machine learning, AI, search, widgets) later cut the install from 129 to 71 MB and
+the zip from 51 to 28 MB. Details: [docs/NATIVE-AOT.md](docs/NATIVE-AOT.md).
 
 ## Develop
 
