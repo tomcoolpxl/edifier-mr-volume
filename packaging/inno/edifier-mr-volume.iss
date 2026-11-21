@@ -107,6 +107,37 @@ begin
       Result := False;
 end;
 
+// True when a copy started from this install folder is running. "--exit" reaches any running
+// copy, so without this check installing or uninstalling here would also close a copy that
+// runs from somewhere else (Scoop, a portable zip). If Windows can't say, assume it is.
+function RunningFromHere: Boolean;
+var
+  Locator, Service, Processes, Process: Variant;
+  I: Integer;
+  AppDir, Path: String;
+begin
+  Result := False;
+  AppDir := Lowercase(AddBackslash(ExpandConstant('{app}')));
+  try
+    Locator := CreateOleObject('WbemScripting.SWbemLocator');
+    Service := Locator.ConnectServer('.', 'root\CIMV2');
+    Processes := Service.ExecQuery('SELECT ExecutablePath FROM Win32_Process WHERE Name = ''EdifierMrVolume.exe''');
+    for I := 0 to Processes.Count - 1 do
+    begin
+      Process := Processes.ItemIndex(I);
+      if not VarIsNull(Process.ExecutablePath) then
+      begin
+        Path := Process.ExecutablePath;
+        if Pos(AppDir, Lowercase(Path)) = 1 then
+          Result := True;
+      end;
+    end;
+  except
+    Log('Could not list running processes; asking any running copy to exit.');
+    Result := True;
+  end;
+end;
+
 // Asks a running copy installed here to exit cleanly ("--exit" signals it and returns at
 // once), then gives it a few seconds to let go of the speaker and its files.
 procedure CloseRunningApp;
@@ -115,7 +146,7 @@ var
   ResultCode: Integer;
 begin
   Exe := ExpandConstant('{app}\EdifierMrVolume.exe');
-  if FileExists(Exe) then
+  if FileExists(Exe) and RunningFromHere then
   begin
     Log('Asking the running app to exit: ' + Exe + ' --exit');
     Exec(Exe, '--exit', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
