@@ -3,6 +3,12 @@
 What changed in each release. Written by the release workflow from the commit
 messages and the GitHub issues closed in between; see docs/RELEASING.md.
 
+## v1.5.0 (2026-11-22)
+
+### Features
+
+- **settings:** the About icon shows the sound mode's LED (3c942ee)
+
 ## v1.4.0 (2026-11-21)
 
 ### Features
