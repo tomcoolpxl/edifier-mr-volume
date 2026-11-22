@@ -188,7 +188,7 @@ public sealed partial class VolumeWindow
     /// <summary>
     /// The LED left of the choices takes the colour of the speaker's own light: red for Monitor,
     /// green for Music, white for Custom; hidden for a mode this app doesn't know. A lit dot with
-    /// a soft glow.
+    /// a soft glow. tools/make-icon.ps1 uses the same colours for the About icon's LED.
     /// </summary>
     private void ShowModeLight(int mode)
     {

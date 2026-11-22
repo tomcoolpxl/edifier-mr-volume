@@ -87,7 +87,18 @@ $w.Flush()
 # The About row in the settings shows the simpler design: its bold outline and fewer shapes
 # read better at that size than the detailed one.
 Copy-Item (Join-Path $iconDir 'app-icon-small.svg') (Join-Path $assets 'app-icon.svg') -Force
-Write-Host "Wrote $outIco ($($out.Length) bytes) and Assets\app-icon.svg"
+# The same with a tiny lit LED at the cabinet's bottom right, one per sound mode, in the colours
+# of the panel's mode LED (VolumeWindow.ShowModeLight). The settings show the one for the
+# speaker's mode as they open, and the plain icon while the mode isn't known.
+$smallSvg = Get-Content -Raw (Join-Path $iconDir 'app-icon-small.svg')
+$leds = [ordered]@{ monitor = '#FF3B30'; music = '#30D158'; custom = '#F5F7FA' }
+foreach ($mode in $leds.Keys) {
+    $color = $leds[$mode]
+    $led = "  <circle cx=`"182`" cy=`"228`" r=`"22`" fill=`"$color`" fill-opacity=`"0.35`"/>`n" +
+           "  <circle cx=`"182`" cy=`"228`" r=`"12`" fill=`"$color`"/>`n</svg>"
+    [IO.File]::WriteAllText((Join-Path $assets "app-icon-$mode.svg"), $smallSvg.Replace('</svg>', $led))
+}
+Write-Host "Wrote $outIco ($($out.Length) bytes), Assets\app-icon.svg and the LED variants"
 
 if ($PreviewFile) {
     # The icon at its real sizes on dark and light backgrounds, plus 128 px.

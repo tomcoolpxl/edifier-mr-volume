@@ -60,7 +60,8 @@
 
   <ItemGroup>
     <!-- Shown in the About row of the settings view: the simple design (assets/icon/app-icon-small.svg,
-         copied by tools/make-icon.ps1). -->
-    <Content Include="Assets\app-icon.svg" CopyToOutputDirectory="PreserveNewest" />  </ItemGroup>
+         copied by tools/make-icon.ps1), plain or with the sound mode's LED. -->
+    <Content Include="Assets\app-icon*.svg" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 
 </Project>

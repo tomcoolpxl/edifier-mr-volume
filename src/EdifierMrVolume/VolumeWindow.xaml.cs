@@ -3,7 +3,6 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.Graphics;
 using Windows.System;
 
@@ -105,9 +104,7 @@ public sealed partial class VolumeWindow : Window
 
         LoadSettingsIntoControls();
 
-        var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "app-icon.svg");
-        if (File.Exists(iconPath))
-            AboutExpander.HeaderIcon = new ImageIcon { Source = new SvgImageSource(new Uri(iconPath)) };
+        ShowAboutIcon();
 
         // Expanders opening/closing and messages appearing change the content's height:
         // resize the panel to match.
@@ -356,6 +353,7 @@ public sealed partial class VolumeWindow : Window
     {
         if (_settingsOpen) return;
         _settingsOpen = true;
+        ShowAboutIcon();
         MainView.Visibility = Visibility.Collapsed;
         SettingsView.Visibility = Visibility.Visible;
         Place();

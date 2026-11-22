@@ -2,6 +2,8 @@ using System.Diagnostics;
 using System.Globalization;
 using EdifierMrVolume.Core;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media.Imaging;
 
 namespace EdifierMrVolume;
 
@@ -30,6 +32,29 @@ public sealed partial class VolumeWindow
         DiagReconnects.Text = d.Reconnects.ToString();
         DiagError.Text = d.LastError ?? "None";
         AboutExpander.Description = $"Version {appVersion}";
+    }
+
+    private string? _aboutIcon;
+
+    /// <summary>
+    /// The app icon in the About row, with a tiny LED in the colour of the speaker's sound mode
+    /// as the settings open (it doesn't follow a change while they are showing); without one
+    /// while the mode isn't known. One prepared picture per mode, made by tools/make-icon.ps1.
+    /// </summary>
+    private void ShowAboutIcon()
+    {
+        var name = _speaker.SoundMode?.Mode switch
+        {
+            0 => "app-icon-monitor.svg",
+            1 => "app-icon-music.svg",
+            2 => "app-icon-custom.svg",
+            _ => "app-icon.svg",
+        };
+        if (name == _aboutIcon) return;
+        var path = Path.Combine(AppContext.BaseDirectory, "Assets", name);
+        if (!File.Exists(path)) return;
+        AboutExpander.HeaderIcon = new ImageIcon { Source = new SvgImageSource(new Uri(path)) };
+        _aboutIcon = name;
     }
 
     /// <summary>
