@@ -55,8 +55,9 @@ is no service, driver or background task.
   **McpTools** declares the tools by hand (no reflection, for Native AOT) and makes each change
   through the same code as the control it stands for.
 - **VolumeOsd** is the small volume bar shown over full-screen apps instead of the panel: a
-  click-through window that never takes the focus, drawn like the tray number. It is not shown
-  over a game in exclusive full screen.
+  window that never takes the focus, drawn like the tray number. A click fades it out. If
+  another program shows it again (Claude's computer use restores every window it minimized),
+  it hides itself. It is not shown over a game in exclusive full screen.
 - **PowerNotifications** turns the speakers off before sleep, if set, and reconnects after wake.
 - **AppSettings**, **Log** and **Autostart** keep `settings.json` and `log.txt` in
   `%LOCALAPPDATA%\EdifierMrVolume` and the Start with Windows entry in the user's Run key.

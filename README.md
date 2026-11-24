@@ -42,7 +42,7 @@ Settings, behind the gear:
 
 | Setting | What it does |
 | --- | --- |
-| Auto-open panel | Shows the panel for a moment when you turn the knob. Over a full-screen video or game, a small volume bar instead. Off by default. |
+| Auto-open panel | Shows the panel for a moment when you turn the knob. Over a full-screen video or game, a small volume bar instead; click it to hide it. Off by default. |
 | Volume limit | The app never sets the volume higher (24 by default). The knob isn't limited. |
 | Start volume | Sets a volume when the app first connects after it starts. Off by default. |
 | Keyboard shortcuts | Ctrl+Alt+Up and Down change the volume in any app, Ctrl+Alt+M mutes. Other keys to choose. Off by default. |
