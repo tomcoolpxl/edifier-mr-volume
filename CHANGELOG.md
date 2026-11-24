@@ -3,6 +3,16 @@
 What changed in each release. Written by the release workflow from the commit
 messages and the GitHub issues closed in between; see docs/RELEASING.md.
 
+## v1.5.1 (2026-11-24)
+
+### Bug fixes
+
+- **flyout:** the volume bar over full-screen apps no longer gets stuck on screen (4e35c80)
+
+### Other
+
+- Bump the nuget group with 7 updates (#21) (b696c62)
+
 ## v1.5.0 (2026-11-22)
 
 ### Features
